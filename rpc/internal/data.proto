@@ -1,15 +1,15 @@
 package internal;
 
 message CopyShardRequest {
-    required string Source = 1; 
-    required string Dest = 2;
-    optional string Database = 3;
-    required string Policy = 4;
-    required uint64 ShardID = 5;
+  required string Source = 1; 
+  required string Dest = 2;
+  optional string Database = 3;
+  required string Policy = 4;
+  required uint64 ShardID = 5;
 }
 
 message CopyShardResponse {
-    required string Err = 1;
+  required string Err = 1;
 }
 
 message CopyShardStatusRequest {
@@ -17,125 +17,125 @@ message CopyShardStatusRequest {
 }
 
 message CopyShardStatusResponse {
-   required string Err = 1;
-   required string Tasks = 2;
+  required string Err = 1;
+  required string Tasks = 2;
 }
 
 message CopyShardStatus {
-   required string Source = 1;
-   required string Dest = 2;
-   required string Database = 3;
-   required string Policy = 4;
-   required uint64 TotalSize = 5;
-   required uint64 currentSize = 6;
-   required uint64 StartedAt = 7;
+  required string Source = 1;
+  required string Dest = 2;
+  required string Database = 3;
+  required string Policy = 4;
+  required uint64 TotalSize = 5;
+  required uint64 currentSize = 6;
+  required uint64 StartedAt = 7;
 }
 
 message KillCopyShardRequest {
-   required string Source = 1;
-   required string Dest = 2;
-   required uint64 ShardID = 3;
+  required string Source = 1;
+  required string Dest = 2;
+  required uint64 ShardID = 3;
 }
 
 message KillCopyShardResponse {
-   required string Err = 1;
+  required string Err = 1;
 }
 
 message RemoveShardRequest {
-   required string Database = 1;
-   required string Policy = 2;
-   required uint64 ShardID = 3;
+  required string Database = 1;
+  required string Policy = 2;
+  required uint64 ShardID = 3;
 }
 
 message RemoveShardResponse {
-   required string Err = 1;
+  required string Err = 1;
 }
 
 message JoinClusterRequest {
-   required uint64 NodeId = 1;
-   required string NodeAddr = 2;
-   required string MetaAddrs = 3;
-   required string ImportMetaData = 4;
+  required uint64 NodeId = 1;
+  required string NodeAddr = 2;
+  required string MetaAddrs = 3;
+  required string ImportMetaData = 4;
 }
 message JoinClusterResponse {
-   required uint64 NodeID = 1;
-   required string TCPHost = 2;
-   required string Err = 3;
+  required uint64 NodeID = 1;
+  required string TCPHost = 2;
+  required string Err = 3;
 }
 
 message LeaveClusterRequest {
-   required string NodeAddr = 1;
+  required string NodeAddr = 1;
 }
 
 message LeaveClusterResponse {
-   required string Err = 1;
+  required string Err = 1;
 }
 
 message WriteShardRequest {
-    required uint64 ShardID = 1;
-    repeated bytes  Points  = 2;
-    optional string Database = 3;
-    optional string RetentionPolicy = 4;
+  required uint64 ShardID = 1;
+  repeated bytes  Points  = 2;
+  optional string Database = 3;
+  optional string RetentionPolicy = 4;
 }
 
 message WriteShardResponse {
-    required int32  Code    = 1;
-    optional string Message = 2;
+  required int32  Code    = 1;
+  optional string Message = 2;
 }
 
 message ExecuteStatementRequest {
-    required string Statement = 1;
-    required string Database  = 2;
+  required string Statement = 1;
+  required string Database  = 2;
 }
 
 message ExecuteStatementResponse {
-    required int32  Code    = 1;
-    optional string Message = 2;
+  required int32  Code    = 1;
+  optional string Message = 2;
 }
 
 message CreateIteratorRequest {
-    repeated uint64 ShardIDs = 1;
-    required bytes  Opt      = 2;
+  repeated uint64 ShardIDs = 1;
+  required bytes  Opt      = 2;
 }
 
 message CreateIteratorResponse {
-    optional string Err = 1;
+  optional string Err = 1;
 }
 
 message IteratorStats {
-   required uint64 SeriesN = 1;
-   required bytes PointN = 2;
+  required uint64 SeriesN = 1;
+  required bytes PointN = 2;
 }
 
 message FieldDimensionsRequest {
-    repeated uint64 ShardIDs = 1;
-    required bytes  Sources  = 2;
+  repeated uint64 ShardIDs = 1;
+  required bytes  Sources  = 2;
 }
 
 message Field {
-   required string Name = 1;
-   required uint64 Type = 2;
+  required string Name = 1;
+  required uint64 Type = 2;
 }
 
 message FieldDimensionsResponse {
-    repeated string Fields     = 1;
-    repeated string Dimensions = 2;
-    optional string Err        = 3;
+  repeated string Fields     = 1;
+  repeated string Dimensions = 2;
+  optional string Err        = 3;
 }
 
 message ExpandSourcesRequest {
-    repeated uint64 ShardIDs = 1;
-    required bytes  Sources = 2;
+  repeated uint64 ShardIDs = 1;
+  required bytes  Sources = 2;
 }
 
 message ExpandSourcesResponse {
-    optional bytes  Sources = 1;
-    optional string Err = 2;
+  optional bytes  Sources = 1;
+  optional string Err = 2;
 }
 
 messgae DownloadShardSnapshotRequest {
-    required uint64 ShardID = 1;
-    required string Path = 2;
+  required uint64 ShardID = 1;
+  required string Path = 2;
 }
 
 messgae DownloadShardSnapshotResponse {
@@ -143,16 +143,16 @@ messgae DownloadShardSnapshotResponse {
 }
 
 message ShardStatusRequest {
-   required uint64 ShardID = 1;
+  required uint64 ShardID = 1;
 }
 
 messgae ShardStatusResponse {
-   required string Err = 1;
-   required uint64 Size = 2;
+  required string Err = 1;
+  required uint64 Size = 2;
 }
 
 messgae CreateShardSnapshotRequest {
-   required uint64 ShardID = 1;
+  required uint64 ShardID = 1;
 }
 
 messgae CreateShardSnapshotResponse {
@@ -196,42 +196,43 @@ Err
 }
 
 message RestoreShardRequest {
-ShardID
-Size
+  required uint64 ShardID = 1;
+  required uint64 Size = 2;
 }
 
 message RestoreShardResponse {
-Err
+  required string Err = 1;
 }
 
 message ShowMeasurementsRequest {
-Err
-Condition
+  required string Err = 1;
+  //Not sure what should be used for Condition, use string for now
+  required string Condition = 2;
 }
 
 message ShowMeasurementsResponse {
-Measurements
-Err
+  required string Measurements = 1;
+  required string Err = 2;
 }
 
 message KeyValue {
-Key
-Value
+  required string Key = 1;
+  required string Value
 }
 
 messgae TagValues {
-Measurement
-Values
+  required string Measurement
+  required string Values
 }
 
 message ShowTagValuesRequest {
-Database
-Condition
+  required string Database
+  required  Condition
 }
 
 message ShowTagValuesResponse {
-Values
-Err
+  required bytes Values = 1;
+  required string Err = 2;
 }
 
 
