@@ -101,11 +101,7 @@ func NewDemoConfig() *Config {
 }
 
 func (c *Config) Validate() error {
-	if c.Dir == "" {
-		return errors.New("Meta.Dir must be specified")
-	}
-	c.Meta.Validate()
-	return nil
+	return c.Meta.Validate()
 }
 
 // ApplyEnvOverrides apply the environment configuration on top of the config.
@@ -223,12 +219,6 @@ func (c *Config) defaultHost(addr string) string {
 	return address
 }
 
-type MetaConfig struct {
-}
-
-func (m *MetaConfig) Validate() error {
-
-}
 func DefaultHost(hostname, addr string) (string, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -273,6 +263,10 @@ type MetaConfig struct {
 	LeaseDuration toml.Duration `toml:"lease-duration"`
 }
 
+//TODO add more criterias
 func (m *MetaConfig) Valiadte() error {
-
+	if m.Dir == "" {
+		return errors.New("Meta.Dir must be specified")
+	}
+	return nil
 }
