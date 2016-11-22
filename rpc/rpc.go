@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/cluster/internal"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/zhexuany/influxdb-cluster/rpc/internal"
 )
 
 //go:generate protoc --gogo_out=. internal/data.proto
@@ -17,7 +17,7 @@ import (
 type WritePointsRequest struct {
 	Database         string
 	RetentionPolicy  string
-	ConsistencyLevel ConsistencyLevel
+	ConsistencyLevel models.ConsistencyLevel
 	Points           []models.Point
 }
 
@@ -340,74 +340,34 @@ func (r *FieldDimensionsResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// SeriesKeysRequest represents a request to retrieve a list of series keys.
-type SeriesKeysRequest struct {
-	ShardIDs []uint64
-	Opt      influxql.IteratorOptions
+type JoinClusterRequest struct {
+	pb internal.JoinClusterRequest
 }
 
-// MarshalBinary encodes r to a binary format.
-func (r *SeriesKeysRequest) MarshalBinary() ([]byte, error) {
-	buf, err := r.Opt.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	return proto.Marshal(&internal.SeriesKeysRequest{
-		ShardIDs: r.ShardIDs,
-		Opt:      buf,
-	})
+type JoinClusterResponse struct {
+	pb internal.JoinClusterResponse
 }
 
-// UnmarshalBinary decodes data into r.
-func (r *SeriesKeysRequest) UnmarshalBinary(data []byte) error {
-	var pb internal.SeriesKeysRequest
-	if err := proto.Unmarshal(data, &pb); err != nil {
-		return err
-	}
-
-	r.ShardIDs = pb.GetShardIDs()
-	if err := r.Opt.UnmarshalBinary(pb.GetOpt()); err != nil {
-		return err
-	}
-	return nil
+type LeaveClusterRequest struct {
 }
 
-// SeriesKeysResponse represents a response from retrieving series keys.
-type SeriesKeysResponse struct {
-	SeriesList influxql.SeriesList
-	Err        error
+type LeaveClusterReesponse struct {
 }
 
-// MarshalBinary encodes r to a binary format.
-func (r *SeriesKeysResponse) MarshalBinary() ([]byte, error) {
-	var pb internal.SeriesKeysResponse
-
-	buf, err := r.SeriesList.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	pb.SeriesList = buf
-
-	if r.Err != nil {
-		pb.Err = proto.String(r.Err.Error())
-	}
-	return proto.Marshal(&pb)
+type RemoveShardRequest struct {
 }
 
-// UnmarshalBinary decodes data into r.
-func (r *SeriesKeysResponse) UnmarshalBinary(data []byte) error {
-	var pb internal.SeriesKeysResponse
-	if err := proto.Unmarshal(data, &pb); err != nil {
-		return err
-	}
+type RemoveShardResponse struct {
+}
 
-	if err := r.SeriesList.UnmarshalBinary(pb.GetSeriesList()); err != nil {
-		return err
-	}
+type CopyShardStatusRequest struct {
+}
 
-	if pb.Err != nil {
-		r.Err = errors.New(pb.GetErr())
-	}
+type CopyShardStatusResponse struct {
+}
 
-	return nil
+type KillCopyShardRequest struct {
+}
+
+type KillCopyShardResponse struct {
 }

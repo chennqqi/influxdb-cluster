@@ -57,6 +57,7 @@ message JoinClusterRequest {
   required string MetaAddrs = 3;
   required string ImportMetaData = 4;
 }
+
 message JoinClusterResponse {
   required uint64 NodeID = 1;
   required string TCPHost = 2;
@@ -133,12 +134,12 @@ message ExpandSourcesResponse {
   optional string Err = 2;
 }
 
-messgae DownloadShardSnapshotRequest {
+message DownloadShardSnapshotRequest {
   required uint64 ShardID = 1;
   required string Path = 2;
 }
 
-messgae DownloadShardSnapshotResponse {
+message DownloadShardSnapshotResponse {
    optional string Err = 1;
 }
 
@@ -146,16 +147,16 @@ message ShardStatusRequest {
   required uint64 ShardID = 1;
 }
 
-messgae ShardStatusResponse {
+message ShardStatusResponse {
   required string Err = 1;
   required uint64 Size = 2;
 }
 
-messgae CreateShardSnapshotRequest {
+message CreateShardSnapshotRequest {
   required uint64 ShardID = 1;
 }
 
-messgae CreateShardSnapshotResponse {
+message CreateShardSnapshotResponse {
   required string Err = 1;
   required string Path = 2;
   required uint64 Size = 3;
@@ -166,7 +167,7 @@ message DeleteShardSnapshotRequest {
   required string Path = 2;
 }
 
-messgae DeleteShardSnapshotResponse {
+message DeleteShardSnapshotResponse {
   required string Err = 1;
 }
 
@@ -183,16 +184,16 @@ message ShowQueriesRequest {
 }
 
 message ShowQueriesResponse {
-Queries
-Err
+  required string Queries = 1;
+  required string Err = 2;
 }
 
 message KillQueryRequest {
-ID
+  required uint64 ID = 1;
 }
 
 message KillQueryResponse {
-Err
+  required string Err = 1;
 }
 
 message RestoreShardRequest {
@@ -217,17 +218,17 @@ message ShowMeasurementsResponse {
 
 message KeyValue {
   required string Key = 1;
-  required string Value
+  required string Value = 2;
 }
 
-messgae TagValues {
-  required string Measurement
-  required string Values
+message TagValues {
+  required string Measurement = 1;
+  required string Values = 2;
 }
 
 message ShowTagValuesRequest {
-  required string Database
-  required  Condition
+  required string Database = 1;
+  required string Condition = 2;
 }
 
 message ShowTagValuesResponse {
