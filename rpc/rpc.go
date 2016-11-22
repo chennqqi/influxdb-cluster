@@ -341,7 +341,40 @@ func (r *FieldDimensionsResponse) UnmarshalBinary(data []byte) error {
 }
 
 type JoinClusterRequest struct {
-	pb internal.JoinClusterRequest
+	NodeID    uint64
+	NodeAddr  string
+	MetaAddrs []byte
+}
+
+func (jc *JoinClusterRequest) MarshalBinary() ([]byte, error) {
+	var pb internal.JoinClusterRequest
+
+	pb.NodeID = jc.NodeID
+
+	pb.MetaAddrs = jc.MetaAddrs
+	pb.NodeAddr = jc.NodeAddr
+
+	pb.MetaAddrs = make([]byte, 0, len(jc.MetaAddrs))
+	for k := range jc.MetaAddrs {
+		pb.MetaAddrs = append(pb.MetaAddrs, k)
+	}
+
+	return proto.Marshal(&pb)
+
+}
+
+func (jc *JoinClusterRequest) UnmarshalBinary(data []byte) error {
+	var pb internal.JoinClusterRequest
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	jc.MetaAddrs = pb.GetMetaAddrs()
+	jc.NodeID = pb.GetNodeID()
+	jc.NodeAddr = pb.GetNodeAddr()
+
+	return nil
+
 }
 
 type JoinClusterResponse struct {
