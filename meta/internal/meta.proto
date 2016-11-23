@@ -225,7 +225,7 @@ message DeleteShardGroupCommand {
 
 message CreateContinuousQueryCommand {
     extend Command {
-        optional CreateContinuousQueryCommand command = 111;
+        optional CreateContinuousQueryCommand command = 109;
     }
     required string Database = 1;
     required string Name = 2;
@@ -234,7 +234,7 @@ message CreateContinuousQueryCommand {
 
 message DropContinuousQueryCommand {
     extend Command {
-        optional DropContinuousQueryCommand command = 112;
+        optional DropContinuousQueryCommand command = 110;
     }
     required string Database = 1;
     required string Name = 2;
@@ -242,7 +242,7 @@ message DropContinuousQueryCommand {
 
 message CreateUserCommand {
     extend Command {
-        optional CreateUserCommand command = 113;
+        optional CreateUserCommand command = 111;
     }
     required string Name = 1;
     required string Hash = 2;
@@ -251,14 +251,14 @@ message CreateUserCommand {
 
 message DropUserCommand {
     extend Command {
-        optional DropUserCommand command = 114;
+        optional DropUserCommand command = 112;
     }
     required string Name = 1;
 }
 
 message UpdateUserCommand {
     extend Command {
-        optional UpdateUserCommand command = 115;
+        optional UpdateUserCommand command = 113;
     }
     required string Name = 1;
     required string Hash = 2;
@@ -266,7 +266,7 @@ message UpdateUserCommand {
 
 message SetPrivilegeCommand {
     extend Command {
-        optional SetPrivilegeCommand command = 116;
+        optional SetPrivilegeCommand command = 114;
     }
     required string Username = 1;
     required string Database = 2;
@@ -275,13 +275,13 @@ message SetPrivilegeCommand {
 
 message CreateRoleCommand {
     extend Command {
-        optional CreateRoleCommand command = 117;
+        optional CreateRoleCommand command = 115;
     }
 }
 
 message DropRoleCommand {
     extend Command {
-        optional DropRoleCommand command = 117;
+        optional DropRoleCommand command = 116;
     }
 
 }
@@ -294,33 +294,33 @@ message AddRoleUsersCommand {
 }
 message RemoveRoleUsersCommand {
     extend Command {
-        optional RemoveRoleUsersCommand command = 117;
+        optional RemoveRoleUsersCommand command = 118;
     }
 
 } 
 
 message AddRolePermissionsCommand {
     extend Command {
-        optional AddRolePermissionsCommand command = 117;
+        optional AddRolePermissionsCommand command = 119;
     }
 }
 
 message RemoveRolePermissionsCommand {
     extend Command {
-        optional RemoveRolePermissionsCommand command = 117;
+        optional RemoveRolePermissionsCommand command = 120;
     }
 }
 
 message SetDataCommand {
     extend Command {
-        optional SetDataCommand command = 117;
+        optional SetDataCommand command = 121;
     }
     required bytes Data = 1;
 }
 
 message SetAdminPrivilegeCommand {
     extend Command {
-        optional SetAdminPrivilegeCommand command = 118;
+        optional SetAdminPrivilegeCommand command = 122;
     }
     required string Username = 1;
     required bool Admin = 2;
@@ -328,7 +328,7 @@ message SetAdminPrivilegeCommand {
 
 message CreateSubscriptionCommand {
     extend Command {
-        optional CreateSubscriptionCommand command = 121;
+        optional CreateSubscriptionCommand command = 123;
     }
     required string Name = 1;
     required string Database = 2;
@@ -340,7 +340,7 @@ message CreateSubscriptionCommand {
 
 message DropSubscriptionCommand {
     extend Command {
-        optional DropSubscriptionCommand command = 122;
+        optional DropSubscriptionCommand command = 124;
     }
     required string Name = 1;
     required string Database = 2;
@@ -349,7 +349,7 @@ message DropSubscriptionCommand {
 
 message RemovePeerCommand {
     extend Command {
-        optional RemovePeerCommand command = 123;
+        optional RemovePeerCommand command = 125;
     }
 	optional uint64 ID = 1;
 	required string Addr = 2;
@@ -357,7 +357,7 @@ message RemovePeerCommand {
 
 message CreateMetaNodeCommand {
     extend Command {
-        optional CreateMetaNodeCommand command = 124;
+        optional CreateMetaNodeCommand command = 126;
     }
     required string HTTPAddr = 1;
     required string TCPAddr = 2;
@@ -366,7 +366,7 @@ message CreateMetaNodeCommand {
 
 message CreateDataNodeCommand {
     extend Command {
-        optional CreateDataNodeCommand command = 125;
+        optional CreateDataNodeCommand command = 127;
     }
     required string HTTPAddr = 1;
     required string TCPAddr = 2;
@@ -374,7 +374,7 @@ message CreateDataNodeCommand {
 
 message UpdateDataNodeCommand {
     extend Command {
-        optional UpdateDataNodeCommand command = 126;
+        optional UpdateDataNodeCommand command = 128;
     }
     required uint64 ID = 1;
     required string Host = 2;
@@ -383,14 +383,14 @@ message UpdateDataNodeCommand {
 
 message DeleteMetaNodeCommand {
     extend Command {
-        optional DeleteMetaNodeCommand command = 127;
+        optional DeleteMetaNodeCommand command = 129;
     }
     required uint64 ID = 1;
 }
 
 message DeleteDataNodeCommand {
     extend Command {
-        optional DeleteDataNodeCommand command = 128;
+        optional DeleteDataNodeCommand command = 130;
     }
     required uint64 ID = 1;
 }
@@ -400,7 +400,7 @@ message DeleteDataNodeCommand {
 // if the single host restarts and its hostname changes, this will update it
 message SetMetaNodeCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 131;
   }
   required string HTTPAddr = 1;
   required string TCPAddr = 2;
@@ -409,14 +409,14 @@ message SetMetaNodeCommand {
 
 message DropShardCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 132;
   }
   required int64 ID = 1;
 }
 
 message SetUserPasswordCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 133;
   }
   required string Name = 1;
 	required string Hash = 2;
@@ -424,7 +424,7 @@ message SetUserPasswordCommand {
 
 message AddUserPermissionsCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 134;
   }
   required string Name = 1;
   required UserPrivilege Permissions = 2;
@@ -432,7 +432,7 @@ message AddUserPermissionsCommand {
 
 message RemoveUserPermissionsCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 135;
   }
 
   required string Name = 1;
@@ -441,7 +441,7 @@ message RemoveUserPermissionsCommand {
 
 message AddShardOwnerCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 136;
   }
 
   required uint64 ID = 1;
@@ -450,7 +450,7 @@ message AddShardOwnerCommand {
 
 message RemoveShardOwnerCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 137;
   }
 
   required uint64 ID = 1;
@@ -459,7 +459,7 @@ message RemoveShardOwnerCommand {
 
 message AddPendingShardOwnerCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 138;
   }
 
   required uint64 ID = 1;
@@ -468,7 +468,7 @@ message AddPendingShardOwnerCommand {
 
 message RemovePendingShardOwnerCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 139;
   }
 
   required uint64 ID = 1;
@@ -477,7 +477,7 @@ message RemovePendingShardOwnerCommand {
 
 message CommitPendingShardOwnerCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 140;
   }
 
   required uint64 ID = 1;
@@ -486,7 +486,7 @@ message CommitPendingShardOwnerCommand {
 
 message TruncateShardGroupCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 141;
   }
 
   required uint64 TruncateAt = 1;
@@ -494,7 +494,7 @@ message TruncateShardGroupCommand {
 
 message ChangeRoleNameCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 142;
   }
 
   required string OldName = 1;
@@ -503,7 +503,7 @@ message ChangeRoleNameCommand {
 
 message ImportDataCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 143;
   }
 
   required bytes Data = 1;
@@ -519,7 +519,7 @@ message ImportDataCommand {
 
 message CreateBalancedShardGroupCommand {
   extend Command {
-      optional SetMetaNodeCommand command = 129;
+      optional SetMetaNodeCommand command = 144;
   }
 
   required string Database = 1;
