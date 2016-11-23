@@ -106,50 +106,50 @@ message Command {
     extensions 100 to max;
 
     enum Type {
-		CreateDatabaseCommand            = 1;
-		DropDatabaseCommand              = 2;
-		CreateRetentionPolicyCommand     = 3;
-		DropRetentionPolicyCommand       = 4;
-		SetDefaultRetentionPolicyCommand = 5;
-		UpdateRetentionPolicyCommand     = 6;
-		CreateShardGroupCommand          = 7;
-		DeleteShardGroupCommand          = 8;
-		CreateContinuousQueryCommand     = 9;
-		DropContinuousQueryCommand       = 10;
-		CreateUserCommand                = 11;
-		DropUserCommand                  = 12;
-		UpdateUserCommand                = 13;
-		SetPrivilegeCommand              = 14;
-    CreateRoleCommand                = 15;
-    DropRoleCommand                  = 16;
-    AddRoleUsersCommand              = 17;
-    RemoveRoleUsersCommand           = 18;
-    AddRolePermissionsCommand        = 19;
-    RemoveRolePermissionCommand      = 20;
-		SetDataCommand                   = 21;
-		SetAdminPrivilegeCommand         = 22;
-		CreateSubscriptionCommand        = 23;
-		DropSubscriptionCommand          = 24;
-		RemovePeerCommand                = 25;
-		CreateMetaNodeCommand            = 26;
-		CreateDataNodeCommand            = 27;
-		UpdateDataNodeCommand            = 28;
-		DeleteMetaNodeCommand            = 29;
-		DeleteDataNodeCommand            = 30;
-    SetMetaNodeCommand               = 31;
-    DropShardCommand                 = 32;
-    ImportDataCommand                = 33;
-    SetUserPasswordCommand           = 34;
-    AddUserPermissionsCommand        = 35;
-    RemoveUserPermissionsCommand     = 36;
-    AddShardOwnerCommand             = 37;
-    RemoveShardOwnerCommand          = 38;
-    AddPendingShardOwnerCommand      = 39;
-    CommitPendingShardOwnerCommand   = 40;
-    RemovePendingShardOwnerCommand   = 41;
-    TruncateShardGroupsCommand       = 42;
-    ChangeRoleNameCommand            = 43;
-    CreateBalancedShardGroupCommand  = 44;
+		  CreateDatabaseCommand            = 1;
+      DropDatabaseCommand              = 2;
+      CreateRetentionPolicyCommand     = 3;
+      DropRetentionPolicyCommand       = 4;
+      SetDefaultRetentionPolicyCommand = 5;
+      UpdateRetentionPolicyCommand     = 6;
+      CreateShardGroupCommand          = 7;
+      DeleteShardGroupCommand          = 8;
+      CreateContinuousQueryCommand     = 9;
+      DropContinuousQueryCommand       = 10;
+      CreateUserCommand                = 11;
+      DropUserCommand                  = 12;
+      UpdateUserCommand                = 13;
+      SetPrivilegeCommand              = 14;
+      CreateRoleCommand                = 15;
+      DropRoleCommand                  = 16;
+      AddRoleUsersCommand              = 17;
+      RemoveRoleUsersCommand           = 18;
+      AddRolePermissionsCommand        = 19;
+      RemoveRolePermissionsCommand      = 20;
+      SetDataCommand                   = 21;
+      SetAdminPrivilegeCommand         = 22;
+      CreateSubscriptionCommand        = 23;
+      DropSubscriptionCommand          = 24;
+      RemovePeerCommand                = 25;
+      CreateMetaNodeCommand            = 26;
+      CreateDataNodeCommand            = 27;
+      UpdateDataNodeCommand            = 28;
+      DeleteMetaNodeCommand            = 29;
+      DeleteDataNodeCommand            = 30;
+      SetMetaNodeCommand               = 31;
+      DropShardCommand                 = 32;
+      ImportDataCommand                = 33;
+      SetUserPasswordCommand           = 34;
+      AddUserPermissionsCommand        = 35;
+      RemoveUserPermissionsCommand     = 36;
+      AddShardOwnerCommand             = 37;
+      RemoveShardOwnerCommand          = 38;
+      AddPendingShardOwnerCommand      = 39;
+      CommitPendingShardOwnerCommand   = 40;
+      RemovePendingShardOwnerCommand   = 41;
+      TruncateShardGroupsCommand       = 42;
+      ChangeRoleNameCommand            = 43;
+      CreateBalancedShardGroupCommand  = 44;
     }
 
     required Type type = 1;
@@ -273,6 +273,44 @@ message SetPrivilegeCommand {
     required int32 Privilege = 3;
 }
 
+message CreateRoleCommand {
+    extend Command {
+        optional CreateRoleCommand command = 117;
+    }
+}
+
+message DropRoleCommand {
+    extend Command {
+        optional DropRoleCommand command = 117;
+    }
+
+}
+
+message AddRoleUsersCommand {
+    extend Command {
+        optional AddRoleUsersCommand command = 117;
+    }
+
+}
+message RemoveRoleUsersCommand {
+    extend Command {
+        optional RemoveRoleUsersCommand command = 117;
+    }
+
+} 
+
+message AddRolePermissionsCommand {
+    extend Command {
+        optional AddRolePermissionsCommand command = 117;
+    }
+}
+
+message RemoveRolePermissionsCommand {
+    extend Command {
+        optional RemoveRolePermissionsCommand command = 117;
+    }
+}
+
 message SetDataCommand {
     extend Command {
         optional SetDataCommand command = 117;
@@ -286,14 +324,6 @@ message SetAdminPrivilegeCommand {
     }
     required string Username = 1;
     required bool Admin = 2;
-}
-
-message UpdateNodeCommand {
-    extend Command {
-        optional UpdateNodeCommand command = 119;
-    }
-    required uint64 ID = 1;
-    required string Host = 2;
 }
 
 message CreateSubscriptionCommand {
