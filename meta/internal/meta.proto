@@ -6,9 +6,9 @@ package internal;
 //
 //========================================================================
 
-messgae ClusterData {
-  required Data Data = 1;
-  required unit64 MaxNodeID = 2;
+message ClusterData {
+  required bytes Data = 1;
+  required uint64 MaxNodeID = 2;
   required NodeInfo DataNodes = 3;
   required NodeInfo MetaNodes = 4;
   required RoleInfo Roles = 5;
@@ -143,12 +143,6 @@ message CreateNodeCommand {
 	required uint64 Rand = 2;
 }
 
-message SetMetaNodeCommand {
-  required string HTTPAddr = 1;
-  required string TCPAddr = 2;
-  required uint64 Rand = 3;
-}
-
 message DeleteNodeCommand {
     extend Command {
         optional DeleteNodeCommand command = 102;
@@ -279,7 +273,7 @@ message SetDataCommand {
     extend Command {
         optional SetDataCommand command = 117;
     }
-    required Data Data = 1;
+    required bytes Data = 1;
 }
 
 message SetAdminPrivilegeCommand {
@@ -389,7 +383,7 @@ message DropShardCommand {
 }
 
 message ScopedPermission {
-  required Resources = 1;
+  required bytes Resources = 1;
   required UserPrivilege Permissions = 2;
 }
 
@@ -403,38 +397,38 @@ message AddUserPermissionsCommand {
   required UserPrivilege Permissions = 2;
 }
 
-messgae RemoveUserPermissionsCommand {
+message RemoveUserPermissionsCommand {
   required string Name = 1;
   required UserPrivilege Permissions = 2;
 }
 
 message AddShardOwnerCommand {
-  required unit64 ID = 1;
-  required unit64 NodeID = 2;
+  required uint64 ID = 1;
+  required uint64 NodeID = 2;
 }
 
 message RemoveShardOwnerCommand {
-  required unit64 ID = 1;
-  required unit64 NodeID = 2;
+  required uint64 ID = 1;
+  required uint64 NodeID = 2;
 }
 
 message AddPendingShardOwnerCommand {
-  required unit64 ID = 1;
-  required unit64 NodeID = 2;
+  required uint64 ID = 1;
+  required uint64 NodeID = 2;
 }
 
 message RemovePendingShardOwnerCommand {
-  required unit64 ID = 1;
-  required unit64 NodeID = 2;
+  required uint64 ID = 1;
+  required uint64 NodeID = 2;
 }
 
 message CommitPendingShardOwnerCommand {
-  required unit64 ID = 1;
-  required unit64 NodeID = 2;
+  required uint64 ID = 1;
+  required uint64 NodeID = 2;
 }
 
 message TruncateShardGroupCommand {
-  required unit64 TruncateAt = 1;
+  required uint64 TruncateAt = 1;
 }
 
 message ChangeRoleNameCommand {
@@ -442,16 +436,16 @@ message ChangeRoleNameCommand {
   required string NewName = 2;
 }
 
-messgae ImportDataCommand {
-  required Data Data = 1;
+message ImportDataCommand {
+  required bytes Data = 1;
   //TODO need firgure out what is force
-  required Data Force = 2;
+  required bool Force = 2;
   required string Database = 3;
   required RetentionPolicyInfo RetentionPolicy = 4;
-  required unit64 ShardId = 5;
+  required uint64 ShardId = 5;
   required string NewDatabase = 6;
   required RetentionPolicyInfo NewRetentionPolicy = 7;
-  required unit64 NewReplicationFactor = 8;
+  required uint64 NewReplicationFactor = 8;
 }
 
 message CreateBalancedShardGroupCommand {
