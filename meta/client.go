@@ -1044,7 +1044,7 @@ func (c *Client) Data() {
 func (c *Client) SetData(data *Data) error {
 	return c.retryUntilExec(internal.Command_SetDataCommand, internal.E_SetDataCommand_Command,
 		&internal.SetDataCommand{
-			Data: data.marshal(),
+			Data: data.MarshalBinary(),
 		},
 	)
 }
