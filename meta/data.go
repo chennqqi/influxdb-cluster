@@ -8,7 +8,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
-	internal "github.com/influxdata/influxdb/services/meta/internal"
+	internal "github.com/zhexuany/influxdb-cluster/meta/internal"
 )
 
 //go:generate protoc --gogo_out=. internal/meta.proto
@@ -34,8 +34,8 @@ type Data struct {
 	ClusterID uint64
 	MetaNodes []NodeInfo
 	DataNodes []NodeInfo
-	Databases []DatabaseInfo
 	Users     []UserInfo
+	Roles     []RoleInfo
 
 	MaxNodeID       uint64
 	MaxShardGroupID uint64
@@ -469,10 +469,15 @@ func (data *Data) UpdateShards() {
 
 }
 
-// func (*Data).AddShardOwner(SB) /go/src/github.com/influxdata/plutonium/meta/data.go
-// func (*Data).RemoveShardOwner(SB) /go/src/github.com/influxdata/plutonium/meta/data.go
-// TEXT github.com/influxdata/plutonium/meta.(*Data).PruneShard(SB) /go/src/github.com/influxdata/plutonium/meta/data.go
+func (data *Data) AddShardOwner() {
 
+}
+func (data *Data) RemoveShardOwner() {
+
+}
+func (data *Data) PruneShard() {
+
+}
 func (data *Data) CreateRole() error {
 	//make map
 }
@@ -652,7 +657,19 @@ func (data *Data) ImportData(path string) error {
 	//generateShards()
 }
 
+type UserInfo struct {
+}
+
+func (u *UserInfo) unmarshal() {
+
+}
+
+func (u *UserInfo) InfluxDBUser() {
+
+}
+
 type RoleInfo struct {
+	Users []UserInfo
 }
 
 func (r *RoleInfo) clone() *RoleInfo {
@@ -684,5 +701,32 @@ func (r *RoleInfo) RemoveUser(user UserInfo) {
 }
 
 func (r *RoleInfo) HasUser(user UserInfo) bool {
+
+}
+
+type ScopedPermissions struct {
+}
+
+func (scp *ScopedPermissions) unmarshal() {
+	//call add
+}
+
+func (scp *ScopedPermissions) Clone() {
+
+}
+
+func (scp *ScopedPermissions) Add() {
+
+}
+
+func (scp *ScopedPermissions) Delete() {
+
+}
+
+func (scp *ScopedPermissions) Contains() {
+
+}
+
+func (scp *ScopedPermissions) Matches() {
 
 }
