@@ -64,7 +64,7 @@ func newHandler(c *Config, s *Service) *handler {
 // SetRoutes sets the provided routes on the handler.
 func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 	var handler http.Handler
-	handler = http.HandlerFunc(hf)
+	// handler = http.HandlerFunc(hf)
 	handler = gzipFilter(handler)
 	handler = versionHeader(handler, h)
 	handler = requestID(handler)
@@ -72,8 +72,12 @@ func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 		handler = logging(handler, name, h.logger)
 	}
 	handler = recovery(handler, name, h.logger) // make sure recovery is always last
-
+	//authorize
+	//authenticate
 	return handler
+}
+func (h *handler) authorize() {
+
 }
 
 // ServeHTTP responds to HTTP request to the handler.
@@ -97,6 +101,33 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *handler) do() {
+	//net.URL.String()
+	//net.http.NewRequest()
+	//Header.Set
+	//Rlock
+	//Runlock
+	//http.Do
+	//time now
+	//jwt-go.NewWithClaims
+	//jwt-go SignedString
+}
+
+func (h *handler) get() {
+	//call do
+}
+
+func (h *handler) post() {
+	//do
+}
+func (h *handler) postfrom() {
+
+}
+
+func (h *handler) startGossiping() {
+
+}
+
 func (h *handler) Close() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -118,6 +149,15 @@ func (h *handler) isClosed() bool {
 	default:
 		return false
 	}
+}
+
+func (h *handler) redirectLeader() {
+	//http.Redirect
+	//jsonError
+}
+
+func (h *handler) machineEntitled() {
+
 }
 
 func (h *handler) serveAuthorized(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +200,7 @@ func (h *handler) serveJoin(w http.ResponseWriter, r *http.Request) {
 func (h *handler) serveKillCopyShard(w http.ResponseWriter, r *http.Request) {
 
 }
+
 func (h *handler) serveLeave(w http.ResponseWriter, r *http.Request) {
 
 }
