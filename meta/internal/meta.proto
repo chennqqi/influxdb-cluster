@@ -85,6 +85,16 @@ message UserPrivilege {
 	required int32 Privilege = 2;
 }
 
+message ScopedPermission {
+  required bytes Resources = 1;
+  required UserPrivilege Permissions = 2;
+}
+
+message Response {
+	required bool OK = 1;
+	optional string Error = 2;
+	optional uint64 Index = 3;
+}
 
 //========================================================================
 //
@@ -96,64 +106,58 @@ message Command {
     extensions 100 to max;
 
     enum Type {
-		CreateNodeCommand                = 1;
-		DeleteNodeCommand                = 2;
-		CreateDatabaseCommand            = 3;
-		DropDatabaseCommand              = 4;
-		CreateRetentionPolicyCommand     = 5;
-		DropRetentionPolicyCommand       = 6;
-		SetDefaultRetentionPolicyCommand = 7;
-		UpdateRetentionPolicyCommand     = 8;
-		CreateShardGroupCommand          = 9;
-		DeleteShardGroupCommand          = 10;
-		CreateContinuousQueryCommand     = 11;
-		DropContinuousQueryCommand       = 12;
-		CreateUserCommand                = 13;
-		DropUserCommand                  = 14;
-		UpdateUserCommand                = 15;
-		SetPrivilegeCommand              = 16;
-    CreateRoleCommand                = 17;
-    DropRoleCommand                  = 18;
-    AddRoleUsersCommand              = 19;
-    RemoveRoleUsersCommand           = 20;
-    AddRolePermissionsCommand        = 21;
-    RemoveRolePermissionCommand      = 22;
-		SetDataCommand                   = 23;
-		SetAdminPrivilegeCommand         = 24;
-		CreateSubscriptionCommand        = 25;
-		DropSubscriptionCommand          = 26;
-		RemovePeerCommand                = 27;
-		CreateMetaNodeCommand            = 28;
-		CreateDataNodeCommand            = 29;
-		UpdateDataNodeCommand            = 30;
-		DeleteMetaNodeCommand            = 31;
-		DeleteDataNodeCommand            = 32;
+		CreateDatabaseCommand            = 1;
+		DropDatabaseCommand              = 2;
+		CreateRetentionPolicyCommand     = 3;
+		DropRetentionPolicyCommand       = 4;
+		SetDefaultRetentionPolicyCommand = 5;
+		UpdateRetentionPolicyCommand     = 6;
+		CreateShardGroupCommand          = 7;
+		DeleteShardGroupCommand          = 8;
+		CreateContinuousQueryCommand     = 9;
+		DropContinuousQueryCommand       = 10;
+		CreateUserCommand                = 11;
+		DropUserCommand                  = 12;
+		UpdateUserCommand                = 13;
+		SetPrivilegeCommand              = 14;
+    CreateRoleCommand                = 15;
+    DropRoleCommand                  = 16;
+    AddRoleUsersCommand              = 17;
+    RemoveRoleUsersCommand           = 18;
+    AddRolePermissionsCommand        = 19;
+    RemoveRolePermissionCommand      = 20;
+		SetDataCommand                   = 21;
+		SetAdminPrivilegeCommand         = 22;
+		CreateSubscriptionCommand        = 23;
+		DropSubscriptionCommand          = 24;
+		RemovePeerCommand                = 25;
+		CreateMetaNodeCommand            = 26;
+		CreateDataNodeCommand            = 27;
+		UpdateDataNodeCommand            = 28;
+		DeleteMetaNodeCommand            = 29;
+		DeleteDataNodeCommand            = 30;
+    SetMetaNodeCommand               = 31;
+    DropShardCommand                 = 32;
+    ImportDataCommand                = 33;
+    SetUserPasswordCommand           = 34;
+    AddUserPermissionsCommand        = 35;
+    RemoveUserPermissionsCommand     = 36;
+    AddShardOwnerCommand             = 37;
+    RemoveShardOwnerCommand          = 38;
+    AddPendingShardOwnerCommand      = 39;
+    CommitPendingShardOwnerCommand   = 40;
+    RemovePendingShardOwnerCommand   = 41;
+    TruncateShardGroupsCommand       = 42;
+    ChangeRoleNameCommand            = 43;
+    CreateBalancedShardGroupCommand  = 44;
     }
 
     required Type type = 1;
 }
 
-// This isn't used in >= 0.10.0. Kept around for upgrade purposes. Instead
-// look at CreateDataNodeCommand and CreateMetaNodeCommand
-message CreateNodeCommand {
-    extend Command {
-        optional CreateNodeCommand command = 101;
-    }
-	required string Host = 1;
-	required uint64 Rand = 2;
-}
-
-message DeleteNodeCommand {
-    extend Command {
-        optional DeleteNodeCommand command = 102;
-    }
-	required uint64 ID = 1;
-	required bool Force = 2;
-}
-
 message CreateDatabaseCommand {
     extend Command {
-        optional CreateDatabaseCommand command = 103;
+        optional CreateDatabaseCommand command = 101;
     }
 	required string Name = 1;
 	optional RetentionPolicyInfo RetentionPolicy = 2;
@@ -161,14 +165,14 @@ message CreateDatabaseCommand {
 
 message DropDatabaseCommand {
     extend Command {
-        optional DropDatabaseCommand command = 104;
+        optional DropDatabaseCommand command = 102;
     }
 	required string Name = 1;
 }
 
 message CreateRetentionPolicyCommand {
     extend Command {
-        optional CreateRetentionPolicyCommand command = 105;
+        optional CreateRetentionPolicyCommand command = 103;
     }
 	required string Database = 1;
 	required RetentionPolicyInfo RetentionPolicy = 2;
@@ -176,7 +180,7 @@ message CreateRetentionPolicyCommand {
 
 message DropRetentionPolicyCommand {
     extend Command {
-        optional DropRetentionPolicyCommand command = 106;
+        optional DropRetentionPolicyCommand command = 104;
     }
 	required string Database = 1;
 	required string Name = 2;
@@ -184,7 +188,7 @@ message DropRetentionPolicyCommand {
 
 message SetDefaultRetentionPolicyCommand {
     extend Command {
-        optional SetDefaultRetentionPolicyCommand command = 107;
+        optional SetDefaultRetentionPolicyCommand command = 105;
     }
 	required string Database = 1;
 	required string Name = 2;
@@ -192,7 +196,7 @@ message SetDefaultRetentionPolicyCommand {
 
 message UpdateRetentionPolicyCommand {
     extend Command {
-        optional UpdateRetentionPolicyCommand command = 108;
+        optional UpdateRetentionPolicyCommand command = 106;
     }
 	required string Database = 1;
 	required string Name = 2;
@@ -203,7 +207,7 @@ message UpdateRetentionPolicyCommand {
 
 message CreateShardGroupCommand {
     extend Command {
-        optional CreateShardGroupCommand command = 109;
+        optional CreateShardGroupCommand command = 107;
     }
     required string Database = 1;
     required string Policy = 2;
@@ -212,7 +216,7 @@ message CreateShardGroupCommand {
 
 message DeleteShardGroupCommand {
     extend Command {
-        optional DeleteShardGroupCommand command = 110;
+        optional DeleteShardGroupCommand command = 108;
     }
     required string Database = 1;
     required string Policy = 2;
@@ -361,11 +365,6 @@ message DeleteDataNodeCommand {
     required uint64 ID = 1;
 }
 
-message Response {
-	required bool OK = 1;
-	optional string Error = 2;
-	optional uint64 Index = 3;
-}
 
 // SetMetaNodeCommand is for the initial metanode in a cluster or
 // if the single host restarts and its hostname changes, this will update it
@@ -379,64 +378,104 @@ message SetMetaNodeCommand {
 }
 
 message DropShardCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
   required int64 ID = 1;
 }
 
-message ScopedPermission {
-  required bytes Resources = 1;
-  required UserPrivilege Permissions = 2;
-}
-
 message SetUserPasswordCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
   required string Name = 1;
 	required string Hash = 2;
 }
 
 message AddUserPermissionsCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
   required string Name = 1;
   required UserPrivilege Permissions = 2;
 }
 
 message RemoveUserPermissionsCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required string Name = 1;
   required UserPrivilege Permissions = 2;
 }
 
 message AddShardOwnerCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required uint64 ID = 1;
   required uint64 NodeID = 2;
 }
 
 message RemoveShardOwnerCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required uint64 ID = 1;
   required uint64 NodeID = 2;
 }
 
 message AddPendingShardOwnerCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required uint64 ID = 1;
   required uint64 NodeID = 2;
 }
 
 message RemovePendingShardOwnerCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required uint64 ID = 1;
   required uint64 NodeID = 2;
 }
 
 message CommitPendingShardOwnerCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required uint64 ID = 1;
   required uint64 NodeID = 2;
 }
 
 message TruncateShardGroupCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required uint64 TruncateAt = 1;
 }
 
 message ChangeRoleNameCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required string OldName = 1;
   required string NewName = 2;
 }
 
 message ImportDataCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required bytes Data = 1;
   //TODO need firgure out what is force
   required bool Force = 2;
@@ -449,6 +488,10 @@ message ImportDataCommand {
 }
 
 message CreateBalancedShardGroupCommand {
+  extend Command {
+      optional SetMetaNodeCommand command = 129;
+  }
+
   required string Database = 1;
   required RetentionPolicyInfo Policy = 2;
   required int64 Timestamp = 3;
