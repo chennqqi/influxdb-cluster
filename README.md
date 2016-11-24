@@ -8,10 +8,14 @@ in this system.
 
 Meta nodes hold the following things as meta data:
 1. all nodes' url and their role( meta or data). 
+
 2. All databases and tetention policies that existe in the cluster
+
 3. All shards and shardGroups, and on what nodes exist. To be simpple, ShardLocation
 need stored in meta node.
+
 4. Cluster users and their permissions
+
 5. All continuous queries.
 
 ## Data Nodes
