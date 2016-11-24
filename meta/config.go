@@ -246,8 +246,6 @@ type MetaConfig struct {
 	HTTPSEnabled     bool   `toml:"https-enabled"`
 	HTTPSCertificate string `toml:"https-certificate"`
 
-	// JoinPeers if specified gives other metastore servers to join this server to the cluster
-	JoinPeers              []string      `toml:"-"`
 	RetentionAutoCreate    bool          `toml:"retention-autocreate"`
 	Gossipfrequency        toml.Duration `toml:"gossip-frequency"`
 	Announcementexpiration toml.Duration `toml:"announcement-expiration"`

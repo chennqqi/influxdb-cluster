@@ -193,39 +193,6 @@ func (s *store) peers() []string {
 	return peers
 }
 
-//TODO remove this
-func (s *store) filterAddr(addrs []string, filter string) ([]string, error) {
-	host, port, err := net.SplitHostPort(filter)
-	if err != nil {
-		return nil, err
-	}
-
-	ip, err := net.ResolveIPAddr("ip", host)
-	if err != nil {
-		return nil, err
-	}
-
-	var joinPeers []string
-	for _, addr := range addrs {
-		joinHost, joinPort, err := net.SplitHostPort(addr)
-		if err != nil {
-			return nil, err
-		}
-
-		joinIp, err := net.ResolveIPAddr("ip", joinHost)
-		if err != nil {
-			return nil, err
-		}
-
-		// Don't allow joining ourselves
-		if ip.String() == joinIp.String() && port == joinPort {
-			continue
-		}
-		joinPeers = append(joinPeers, addr)
-	}
-	return joinPeers, nil
-}
-
 func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -292,6 +259,9 @@ func (s *store) afterIndex(index uint64) <-chan struct{} {
 
 	return s.dataChanged
 }
+
+//TODO
+func (s *store) applied() {}
 
 // WaitForLeader sleeps until a leader is found or a timeout occurs.
 // timeout == 0 means to wait forever.

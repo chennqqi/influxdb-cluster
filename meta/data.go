@@ -701,9 +701,11 @@ func (r *RoleInfo) RemoveUser(user UserInfo) {
 }
 
 func (r *RoleInfo) HasUser(user UserInfo) bool {
-	// sort.Search(len(r.Users), func(i int) bool {
+	res := sort.Search(len(r.Users), func(i int) bool {
+		return r.Users[i] == user
+	})
 
-	// })
+	return res < len(r.Users) && r.Users[i] == user
 }
 
 type ScopedPermissions struct {
