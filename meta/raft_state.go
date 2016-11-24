@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,9 +41,107 @@ type raftState struct {
 	path      string
 }
 
-//TODO finished this func
-func LoadConfigEnvOverrides() error {
+//TODO finished this func for now this func is just copied from config.applyEnvOverrides
+func loadConfigEnvOverrides(prefix string, spec reflect.Value) error {
+	// If we have a pointer, dereference it
+	s := spec
+	if spec.Kind() == reflect.Ptr {
+		s = spec.Elem()
+	}
 
+	// Make sure we have struct
+	if s.Kind() != reflect.Struct {
+		return nil
+	}
+
+	typeOfSpec := s.Type()
+	for i := 0; i < s.NumField(); i++ {
+		f := s.Field(i)
+		// Get the toml tag to determine what env var name to use
+		configName := typeOfSpec.Field(i).Tag.Get("toml")
+		// Replace hyphens with underscores to avoid issues with shells
+		configName = strings.Replace(configName, "-", "_", -1)
+		fieldKey := typeOfSpec.Field(i).Name
+
+		// Skip any fields that we cannot set
+		if f.CanSet() || f.Kind() == reflect.Slice {
+
+			// Use the upper-case prefix and toml name for the env var
+			key := strings.ToUpper(configName)
+			if prefix != "" {
+				key = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
+			}
+			value := os.Getenv(key)
+
+			// If the type is s slice, apply to each using the index as a suffix
+			// e.g. GRAPHITE_0
+			if f.Kind() == reflect.Slice || f.Kind() == reflect.Array {
+				for i := 0; i < f.Len(); i++ {
+					if err := c.applyEnvOverrides(fmt.Sprintf("%s_%d", key, i), f.Index(i)); err != nil {
+						return err
+					}
+				}
+				continue
+			}
+
+			// If it's a sub-config, recursively apply
+			if f.Kind() == reflect.Struct || f.Kind() == reflect.Ptr {
+				if err := c.applyEnvOverrides(key, f); err != nil {
+					return err
+				}
+				continue
+			}
+
+			// Skip any fields we don't have a value to set
+			if value == "" {
+				continue
+			}
+
+			switch f.Kind() {
+			case reflect.String:
+				f.SetString(value)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+
+				var intValue int64
+
+				// Handle toml.Duration
+				if f.Type().Name() == "Duration" {
+					dur, err := time.ParseDuration(value)
+					if err != nil {
+						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
+					}
+					intValue = dur.Nanoseconds()
+				} else {
+					var err error
+					intValue, err = strconv.ParseInt(value, 0, f.Type().Bits())
+					if err != nil {
+						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
+					}
+				}
+
+				f.SetInt(intValue)
+			case reflect.Bool:
+				boolValue, err := strconv.ParseBool(value)
+				if err != nil {
+					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
+
+				}
+				f.SetBool(boolValue)
+			case reflect.Float32, reflect.Float64:
+				floatValue, err := strconv.ParseFloat(value, f.Type().Bits())
+				if err != nil {
+					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
+
+				}
+				f.SetFloat(floatValue)
+			default:
+				if err := c.applyEnvOverrides(key, f); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 //TODO remove this func
@@ -52,7 +152,7 @@ func newRaftState(c *Config, addr string) *raftState {
 	}
 }
 
-func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) error {
+func (r *raftState) open(s *store, ln net.Listener) error {
 	r.ln = ln
 	r.closing = make(chan struct{})
 
@@ -78,38 +178,15 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, config.LogOutput)
 
 	// Create peer storage.
-	r.peerStore = &peerStore{}
+	base := "" //TODO
+	r.peerStore = raft.NewJSONPeers(base, r.transport)
 
-	// This server is joining the raft cluster for the first time if initializePeers are passed in
-	if len(initializePeers) > 0 {
-		if err := r.peerStore.SetPeers(initializePeers); err != nil {
-			return err
-		}
+	peer := "" //TODO
+	if ok := raft.PeerContained(r.peerStore, peer); !ok {
+
 	}
 
-	peers, err := r.peerStore.Peers()
-	if err != nil {
-		return err
-	}
-
-	// If no peers are set in the config or there is one and we are it, then start as a single server.
-	if len(initializePeers) <= 1 {
-		config.EnableSingleNode = true
-
-		// Ensure we can always become the leader
-		config.DisableBootstrapAfterElect = false
-
-		// Make sure our peer address is here.  This happens with either a single node cluster
-		// or a node joining the cluster, as no one else has that information yet.
-		if !raft.PeerContained(peers, r.addr) {
-			if err := r.peerStore.SetPeers([]string{r.addr}); err != nil {
-				return err
-			}
-		}
-
-		peers = []string{r.addr}
-	}
-
+	//call PeerContained
 	// Create the log store and stable store.
 	store, err := raftboltdb.NewBoltStore(filepath.Join(r.path, "raft.db"))
 	if err != nil {
@@ -203,17 +280,6 @@ func (r *raftState) apply(b []byte) error {
 	}
 
 	return nil
-}
-
-//TODO delete it
-func (r *raftState) lastIndex() uint64 {
-	return r.raft.LastIndex()
-}
-
-//TODO delete it
-func (r *raftState) snapshot() error {
-	future := r.raft.Snapshot()
-	return future.Error()
 }
 
 // addPeer adds addr to the list of peers in the cluster.
@@ -340,22 +406,7 @@ func (l *raftLayer) Accept() (net.Conn, error) { return l.ln.Accept() }
 // Close closes the layer.
 func (l *raftLayer) Close() error { return l.ln.Close() }
 
-//TODO remove peerStore
-// peerStore is an in-memory implementation of raft.PeerStore
-type peerStore struct {
-	mu    sync.RWMutex
-	peers []string
-}
+//TODO finished this
+func split() {
 
-func (m *peerStore) Peers() ([]string, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.peers, nil
-}
-
-func (m *peerStore) SetPeers(peers []string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.peers = peers
-	return nil
 }

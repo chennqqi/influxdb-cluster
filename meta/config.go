@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/toml"
+	"github.com/zhexuany/influxdb-cluster/meta"
 )
 
 const (
@@ -49,36 +50,7 @@ const (
 
 // Config represents the meta configuration.
 type Config struct {
-	Enabled bool   `toml:"enabled"`
-	Dir     string `toml:"dir"`
-
-	// RemoteHostname is the hostname portion to use when registering meta node
-	// addresses.  This hostname must be resolvable from other nodes.
-	RemoteHostname string `toml:"-"`
-
-	// this is deprecated. Should use the address from run/config.go
-	BindAddress string `toml:"bind-address"`
-
-	// HTTPBindAddress is the bind address for the metaservice HTTP API
-	HTTPBindAddress  string `toml:"http-bind-address"`
-	HTTPSEnabled     bool   `toml:"https-enabled"`
-	HTTPSCertificate string `toml:"https-certificate"`
-
-	// JoinPeers if specified gives other metastore servers to join this server to the cluster
-	JoinPeers              []string      `toml:"-"`
-	RetentionAutoCreate    bool          `toml:"retention-autocreate"`
-	Gossipfrequency        toml.Duration `toml:"gossip-frequency"`
-	Announcementexpiration toml.Duration `toml:"announcement-expiration"`
-	ElectionTimeout        toml.Duration `toml:"election-timeout"`
-	HeartbeatTimeout       toml.Duration `toml:"heartbeat-timeout"`
-	LeaderLeaseTimeout     toml.Duration `toml:"leader-lease-timeout"`
-	CommitTimeout          toml.Duration `toml:"commit-timeout"`
-	ClusterTracing         bool          `toml:"cluster-tracing"`
-	RaftPromotionEnabled   bool          `toml:"raft-promotion-enabled"`
-	LoggingEnabled         bool          `toml:"logging-enabled"`
-	PprofEnabled           bool          `toml:"pprof-enabled"`
-
-	LeaseDuration toml.Duration `toml:"lease-duration"`
+	Meta *MetaConfig `toml:"meta"`
 }
 
 // NewConfig builds a new configuration with default values.
@@ -102,12 +74,13 @@ func NewConfig() *Config {
 }
 
 func NewDemoConfig() *Config {
-	c := NewConfig()
-	c.InitTableAttrs()
+	// c := NewConfig()
+	// c.InitTableAttrs()
 
 	var homeDir string
 	// By default, store meta and data files in current users home directory
 	u, err := user.Current()
+	c.Meta.Dir = filepath.Join(homeDir, ".influxdb/meta")
 	if err == nil {
 		homeDir = u.HomeDir
 	} else if os.Getenv("HOME") != "" {
@@ -116,12 +89,11 @@ func NewDemoConfig() *Config {
 		return nil, fmt.Errorf("failed to determine current user for storage")
 	}
 
-	c.Meta.Dir = filepath.Join(homeDir, ".influxdb/meta")
-	c.Data.Dir = filepath.Join(homeDir, ".influxdb/data")
-	c.HintedHandoff.Dir = filepath.Join(homeDir, ".influxdb/hh")
-	c.Data.WALDir = filepath.Join(homeDir, ".influxdb/wal")
-
-	c.HintedHandoff.Enabled = true
+	// The following lines should add to data node instead of meta node TODO
+	// c.Data.Dir = filepath.Join(homeDir, ".influxdb/data")
+	// c.HintedHandoff.Dir = filepath.Join(homeDir, ".influxdb/hh")
+	// c.Data.WALDir = filepath.Join(homeDir, ".influxdb/wal")
+	// c.HintedHandoff.Enabled = true
 	c.Admin.Enabled = true
 
 	return c, nil
@@ -129,10 +101,7 @@ func NewDemoConfig() *Config {
 }
 
 func (c *Config) Validate() error {
-	if c.Dir == "" {
-		return errors.New("Meta.Dir must be specified")
-	}
-	return nil
+	return c.Meta.Validate()
 }
 
 // ApplyEnvOverrides apply the environment configuration on top of the config.
@@ -250,12 +219,6 @@ func (c *Config) defaultHost(addr string) string {
 	return address
 }
 
-type MetaConfig struct {
-}
-
-func (m *MetaConfig) Validate() error {
-
-}
 func DefaultHost(hostname, addr string) (string, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -266,4 +229,42 @@ func DefaultHost(hostname, addr string) (string, error) {
 		return net.JoinHostPort(hostname, port), nil
 	}
 	return addr, nil
+}
+
+type MetaConfig struct {
+	Enabled bool   `toml:"enabled"`
+	Dir     string `toml:"dir"`
+	// RemoteHostname is the hostname portion to use when registering meta node
+	// addresses.  This hostname must be resolvable from other nodes.
+	RemoteHostname string `toml:"-"`
+
+	// this is deprecated. Should use the address from run/config.go
+	BindAddress string `toml:"bind-address"`
+
+	// HTTPBindAddress is the bind address for the metaservice HTTP API
+	HTTPBindAddress  string `toml:"http-bind-address"`
+	HTTPSEnabled     bool   `toml:"https-enabled"`
+	HTTPSCertificate string `toml:"https-certificate"`
+
+	RetentionAutoCreate    bool          `toml:"retention-autocreate"`
+	Gossipfrequency        toml.Duration `toml:"gossip-frequency"`
+	Announcementexpiration toml.Duration `toml:"announcement-expiration"`
+	ElectionTimeout        toml.Duration `toml:"election-timeout"`
+	HeartbeatTimeout       toml.Duration `toml:"heartbeat-timeout"`
+	LeaderLeaseTimeout     toml.Duration `toml:"leader-lease-timeout"`
+	CommitTimeout          toml.Duration `toml:"commit-timeout"`
+	ClusterTracing         bool          `toml:"cluster-tracing"`
+	RaftPromotionEnabled   bool          `toml:"raft-promotion-enabled"`
+	LoggingEnabled         bool          `toml:"logging-enabled"`
+	PprofEnabled           bool          `toml:"pprof-enabled"`
+
+	LeaseDuration toml.Duration `toml:"lease-duration"`
+}
+
+//TODO add more criterias
+func (m *MetaConfig) Valiadte() error {
+	if m.Dir == "" {
+		return errors.New("Meta.Dir must be specified")
+	}
+	return nil
 }

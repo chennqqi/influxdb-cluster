@@ -9,6 +9,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/pprof"
+	"net/url"
 	"os"
 	"runtime"
 	"strconv"
@@ -16,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
 	"github.com/influxdata/influxdb/services/meta/internal"
@@ -49,6 +52,7 @@ type handler struct {
 
 // newHandler returns a new instance of handler with routes.
 func newHandler(c *Config, s *Service) *handler {
+	//TODO makemap
 	h := &handler{
 		s:              s,
 		config:         c,
@@ -64,7 +68,7 @@ func newHandler(c *Config, s *Service) *handler {
 // SetRoutes sets the provided routes on the handler.
 func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 	var handler http.Handler
-	handler = http.HandlerFunc(hf)
+	// handler = http.HandlerFunc(hf)
 	handler = gzipFilter(handler)
 	handler = versionHeader(handler, h)
 	handler = requestID(handler)
@@ -72,12 +76,23 @@ func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 		handler = logging(handler, name, h.logger)
 	}
 	handler = recovery(handler, name, h.logger) // make sure recovery is always last
-
+	//TODO need firgure what is the parameter of this func
+	h.authorize()
+	//authorize
+	//authenticate
 	return handler
+}
+
+func (h *handler) authorize() {
+
 }
 
 // ServeHTTP responds to HTTP request to the handler.
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// pprof.Cmdline(w, r)
+	// pprof.Profile(w, r)
+	// pprof.Symbol(w, r)
+	// pprof.Index(w, r)
 	switch r.Method {
 	case "GET":
 		switch r.URL.Path {
@@ -95,6 +110,35 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "", http.StatusBadRequest)
 	}
+}
+
+func (h *handler) do() {
+	u := url.URL.String()
+	req := http.NewRequest("http", u)
+	// http.Header.Set(k, v) fmt.Sprintf
+	h.mu.RLock()
+	h.mu.RUnlock()
+	//http.Do
+	//time now
+	// jwt.NewWithClaims()
+	// jwt.SignedString()
+}
+
+func (h *handler) get() {
+	h.do()
+}
+
+func (h *handler) post() {
+	h.do()
+}
+func (h *handler) postform() {
+	//net.url.Va
+	url.Values.Encode()
+	h.do()
+}
+
+func (h *handler) startGossiping() {
+
 }
 
 func (h *handler) Close() error {
@@ -120,68 +164,90 @@ func (h *handler) isClosed() bool {
 	}
 }
 
-func (h *handler) serveAuthorized(w http.ResponseWriter, r *http.Request) {
+func (h *handler) redirectLeader() {
+	//http.Redirect
+	//jsonError
+}
+
+func (h *handler) machineEntitled() {
 
 }
-func (h *handler) serveGetRole(w http.ResponseWriter, r *http.Request) {
 
-}
-func (h *handler) serveCopyShardStatus(w http.ResponseWriter, r *http.Request) {
+func (h *handler) serveJoin(w http.ResponseWriter, r *http.Request) {
+	if h.isClosed() {
+		h.httpError(fmt.Errorf("server closed"), w, http.StatusServiceUnavailable)
+		return
+	}
+	n := &NodeInfo{}
+	if err := json.Unmarshal(body, n); err != nil {
+		h.httpError(err, w, http.StatusInternalServerError)
+		return
+	}
 
-}
-func (h *handler) serveShowCluster(w http.ResponseWriter, r *http.Request) {
+	// if resp, err := http.PostForm(h.config.Meta.RemoteHostname, data); err != nil {
 
-}
-func (h *handler) serveShowShards(w http.ResponseWriter, r *http.Request) {
+	// }
 
-}
-func (h *handler) serveStatus(w http.ResponseWriter, r *http.Request) {
+	node, err := h.store.join(n)
+	if err == raft.ErrNotLeader {
+		l := h.store.leaderHTTP()
+		if l == "" {
+			// No cluster leader. Client will have to try again later.
+			h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
+			return
+		}
+		scheme := "http://"
+		if h.config.HTTPSEnabled {
+			scheme = "https://"
+		}
 
+		l = scheme + l + "/join"
+		http.Redirect(w, r, l, http.StatusTemporaryRedirect)
+		return
+	}
+
+	if err != nil {
+		h.httpError(err, w, http.StatusInternalServerError)
+		return
+	}
+
+	// Return the node with newly assigned ID as json
+	w.Header().Add("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(node); err != nil {
+		h.jsonError(err, w, http.StatusInternalServerError)
+	}
+
+	return
+
+	// http.PostForm(url, data)
+	// h.get()
+	// json.Decoder.Decode(v)
+	// jsonError()
+	// http.Header.Add(k, v)
+	// json.Encoder.Encode(v)
+	// jsonError()
+	// h.postform()
 }
-func (h *handler) serveGetUser(w http.ResponseWriter, r *http.Request) {
+
+func (h *handler) serveLeave(w http.ResponseWriter, r *http.Request) {
+	h.postform()
+}
+func (h *handler) serveRemoveMeta(w http.ResponseWriter, r *http.Request) {
 
 }
 
 func (h *handler) serveAddData(w http.ResponseWriter, r *http.Request) {
 
 }
-func (h *handler) serveAnnounce(w http.ResponseWriter, r *http.Request) {
 
-}
-func (h *handler) serveCopyShard(w http.ResponseWriter, r *http.Request) {
-
-}
-func (h *handler) serveRemoveShard(w http.ResponseWriter, r *http.Request) {
-
-}
-func (h *handler) serveJoin(w http.ResponseWriter, r *http.Request) {
-
-}
-func (h *handler) serveKillCopyShard(w http.ResponseWriter, r *http.Request) {
-
-}
-func (h *handler) serveLeave(w http.ResponseWriter, r *http.Request) {
-
-}
 func (h *handler) serveRemoveData(w http.ResponseWriter, r *http.Request) {
-
-}
-func (h *handler) serveRemoveMeta(w http.ResponseWriter, r *http.Request) {
-
-}
-func (h *handler) serveRestoreMeta(w http.ResponseWriter, r *http.Request) {
-
-}
-func (h *handler) servePostRole(w http.ResponseWriter, r *http.Request) {
 
 }
 func (h *handler) serveUpdateData(w http.ResponseWriter, r *http.Request) {
 
 }
-func (h *handler) servePostUser(w http.ResponseWriter, r *http.Request) {
 
-}
-func (h *handler) serveTruncateShards(w http.ResponseWriter, r *http.Request) {
+func (h *handler) verifyDataNode() {
 
 }
 
@@ -196,45 +262,6 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.httpError(err, w, http.StatusInternalServerError)
-		return
-	}
-
-	if r.URL.Path == "/join" {
-		n := &NodeInfo{}
-		if err := json.Unmarshal(body, n); err != nil {
-			h.httpError(err, w, http.StatusInternalServerError)
-			return
-		}
-
-		node, err := h.store.join(n)
-		if err == raft.ErrNotLeader {
-			l := h.store.leaderHTTP()
-			if l == "" {
-				// No cluster leader. Client will have to try again later.
-				h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
-				return
-			}
-			scheme := "http://"
-			if h.config.HTTPSEnabled {
-				scheme = "https://"
-			}
-
-			l = scheme + l + "/join"
-			http.Redirect(w, r, l, http.StatusTemporaryRedirect)
-			return
-		}
-
-		if err != nil {
-			h.httpError(err, w, http.StatusInternalServerError)
-			return
-		}
-
-		// Return the node with newly assigned ID as json
-		w.Header().Add("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(node); err != nil {
-			h.httpError(err, w, http.StatusInternalServerError)
-		}
-
 		return
 	}
 
@@ -290,13 +317,22 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-func validateCommand(b []byte) error {
-	// Ensure command can be deserialized before applying.
-	if err := proto.Unmarshal(b, &internal.Command{}); err != nil {
-		return fmt.Errorf("unable to unmarshal command: %s", err)
-	}
+func (h *handler) serveRemoveShard(w http.ResponseWriter, r *http.Request) {
 
-	return nil
+}
+
+func (h *handler) serveCopyShardStatus(w http.ResponseWriter, r *http.Request) {
+
+}
+func (h *handler) serveCopyShard(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *handler) serveKillCopyShard(w http.ResponseWriter, r *http.Request) {
+
+}
+func (h *handler) serveTruncateShards(w http.ResponseWriter, r *http.Request) {
+
 }
 
 // serveSnapshot is a long polling http connection to server cache updates
@@ -335,6 +371,10 @@ func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 		h.httpError(fmt.Errorf("server closed"), w, http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *handler) serveRestoreMeta(w http.ResponseWriter, r *http.Request) {
+
 }
 
 // servePing will return if the server is up, or if specified will check the status
@@ -383,13 +423,14 @@ func (h *handler) servePing(w http.ResponseWriter, r *http.Request) {
 	h.httpError(fmt.Errorf("one or more metaservers not up"), w, http.StatusInternalServerError)
 }
 
-//TODO remove this
-func (h *handler) servePeers(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
-	enc := json.NewEncoder(w)
-	if err := enc.Encode(h.store.peers()); err != nil {
-		h.httpError(err, w, http.StatusInternalServerError)
-	}
+func (h *handler) serveStatus(w http.ResponseWriter, r *http.Request) {
+
+}
+func (h *handler) serveShowCluster(w http.ResponseWriter, r *http.Request) {
+
+}
+func (h *handler) serveShowShards(w http.ResponseWriter, r *http.Request) {
+
 }
 
 // serveLease
@@ -457,6 +498,36 @@ func (h *handler) serveLease(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	w.Write(b)
 	return
+}
+
+func (h *handler) serveAnnounce(w http.ResponseWriter, r *http.Request) {
+
+}
+func (h *handler) serveGetUser(w http.ResponseWriter, r *http.Request) {
+
+}
+func (h *handler) servePostUser(w http.ResponseWriter, r *http.Request) {
+
+}
+func (h *handler) serveGetRole(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *handler) servePostRole(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *handler) serveAuthorized(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func validateCommand(b []byte) error {
+	// Ensure command can be deserialized before applying.
+	if err := proto.Unmarshal(b, &internal.Command{}); err != nil {
+		return fmt.Errorf("unable to unmarshal command: %s", err)
+	}
+
+	return nil
 }
 
 type gzipResponseWriter struct {
@@ -537,6 +608,13 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 
 		inner.ServeHTTP(l, r)
 	})
+}
+
+func (h *handler) jsonError(err error, w http.ResponseWriter, status int) {
+	if h.loggingEnabled {
+		h.logger.Println(err)
+	}
+	http.Error(w, "", status)
 }
 
 func (h *handler) httpError(err error, w http.ResponseWriter, status int) {

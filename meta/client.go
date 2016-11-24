@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"http"
 	"io"
 	"io/ioutil"
 	"log"
@@ -20,7 +21,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
-	"github.com/influxdata/influxdb/services/meta/internal"
+	"github.com/zhexuany/influxdb-cluster/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
 	"golang.org/x/crypto/bcrypt"
@@ -59,6 +60,9 @@ type Client struct {
 	changed     chan struct{}
 	closing     chan struct{}
 	cacheData   *Data
+	Path        string
+	AuthInfo    string
+	HTTPClient  *http.Client
 
 	// Authentication cache.
 	authCache map[string]authUser
@@ -143,25 +147,39 @@ func (c *Client) CheckMetaServers() {
 }
 
 func (c *Client) Path() string {
-
+	return c.Path
 }
 
 func (c *Client) SetPath(path string) {
+	c.Path = path
 }
 
-func (c *Client) TLS() {
-
+func (c *Client) TLS() bool {
+	return c.tls
 }
 
 // SetTLS sets whether the client should use TLS when connecting.
 // This function is not safe for concurrent use.
 func (c *Client) SetTLS(v bool) { c.tls = v }
 
-func (c *Client) AuthInfo() {}
+func (c *Client) AuthInfo() {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.AuthInfo
 
-func (c *Client) SetAuthInfo() {}
+}
 
-func (c *Client) SetHTTPClient() {}
+func (c *Client) SetAuthInfo(authInfo string) {
+	c.mu.Lock()
+	c.AuthInfo = authInfo
+	c.mu.Unlock()
+}
+
+func (c *Client) SetHTTPClient(httpClient *http.Client) {
+	c.mu.Lock()
+	c.HTTPClient = httpClient
+	c.mu.Unlock()
+}
 
 // Ping will hit the ping endpoint for the metaservice and return nil if
 // it returns 200. If checkAllMetaServers is set to true, it will hit the
@@ -214,34 +232,36 @@ func (c *Client) AcquireLease(name string) (l *Lease, err error) {
 
 func (c *Client) acquireLease(name string) (*Lease, error) {
 	c.mu.RLock()
-	server := c.metaServers[0]
+	servers := c.MetaServers()
 	c.mu.RUnlock()
-	url := fmt.Sprintf("%s/lease?name=%s&nodeid=%d", c.url(server), name, c.nodeID)
 
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	for _, server := range servers {
+		url := fmt.Sprintf("%s/lease?name=%s&nodeid=%d", c.url(server), name, c.nodeID)
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-	case http.StatusConflict:
-		err = errors.New("another node owns the lease")
-	case http.StatusServiceUnavailable:
-		return nil, ErrServiceUnavailable
-	case http.StatusBadRequest:
-		b, e := ioutil.ReadAll(resp.Body)
-		if e != nil {
-			return nil, e
+		resp, err := http.Get(url)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("meta service: %s", string(b))
-	case http.StatusInternalServerError:
-		return nil, errors.New("meta service internal error")
-	default:
-		return nil, errors.New("unrecognized meta service error")
-	}
+		defer resp.Body.Close()
 
+		switch resp.StatusCode {
+		case http.StatusOK:
+		case http.StatusConflict:
+			err = errors.New("another node owns the lease")
+		case http.StatusServiceUnavailable:
+			return nil, ErrServiceUnavailable
+		case http.StatusBadRequest:
+			b, e := ioutil.ReadAll(resp.Body)
+			if e != nil {
+				return nil, e
+			}
+			return nil, fmt.Errorf("meta service: %s", string(b))
+		case http.StatusInternalServerError:
+			return nil, errors.New("meta service internal error")
+		default:
+			return nil, errors.New("unrecognized meta service error")
+		}
+	}
 	// Read lease JSON from response body.
 	b, e := ioutil.ReadAll(resp.Body)
 	if e != nil {
@@ -256,8 +276,10 @@ func (c *Client) acquireLease(name string) (*Lease, error) {
 	return l, err
 }
 
-func (c *Client) setData() {
-
+func (c *Client) setData(data *Data) {
+	c.mu.Lock()
+	c.cacheData = data
+	c.mu.Unlock()
 }
 
 func (c *Client) data() *Data {
@@ -271,7 +293,7 @@ func (c *Client) ClusterID() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.cacheData.ClusterID
+	return c.data().ClusterID
 }
 
 // Node returns a node by id.
@@ -310,7 +332,9 @@ func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 	return n, nil
 }
 
-func (c *Client) ShardPendingOwners() {}
+func (c *Client) ShardPendingOwners() {
+	// c.data()
+}
 
 func (c *Client) RemovePendingShardOwner() {}
 
@@ -1020,7 +1044,7 @@ func (c *Client) Data() {
 func (c *Client) SetData(data *Data) error {
 	return c.retryUntilExec(internal.Command_SetDataCommand, internal.E_SetDataCommand_Command,
 		&internal.SetDataCommand{
-			Data: data.marshal(),
+			Data: data.MarshalBinary(),
 		},
 	)
 }

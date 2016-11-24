@@ -56,12 +56,13 @@ func NewService(c *Config) *Service {
 	return s
 }
 
-//TODO finish two func
-func (s *Service) SetVersion() {
-
+func (s *Service) SetVersion(version string) {
+	s.Version = version
 }
 
-func (s *Service) Version() {}
+func (s *Service) Version() string {
+	return s.Version
+}
 
 // Open starts the service
 func (s *Service) Open() error {
@@ -185,9 +186,8 @@ func (s *Service) Close() error {
 	return nil
 }
 
-//TODO
-func (s *Service) RemoteHTTPAddr() string {
-	return s.httpAddr
+func (s *Service) RemoteHTTPAddr(addr string) string {
+	return s.remoteAddr(s.httpAddr)
 }
 
 // HTTPAddr returns the bind address for the HTTP API
@@ -195,9 +195,8 @@ func (s *Service) HTTPAddr() string {
 	return s.httpAddr
 }
 
-//TODO
 func (s *Service) RemoteRaftAddr() string {
-	return s.raftAddr
+	return s.remoteAddr(s.raftAddr)
 }
 
 // RaftAddr returns the bind address for the Raft TCP listener
