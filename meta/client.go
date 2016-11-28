@@ -814,7 +814,7 @@ func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Tim
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
 func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
-	if sg, _ := c.data().ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
+	if sg, _ := c.data().data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		return sg, nil
 	}
 
@@ -1037,8 +1037,8 @@ func (c *Client) DropSubscription(database, rp, name string) error {
 		},
 	)
 }
-func (c *Client) Data() {
-
+func (c *Client) Data() *Data {
+	return c.data().Clone()
 }
 
 func (c *Client) SetData(data *Data) error {

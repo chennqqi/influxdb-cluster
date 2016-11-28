@@ -2,11 +2,11 @@ package control
 
 import ()
 
-func DataNode()  {
+func DataNode() {
 
 }
 
-func MetaNode  {
+func MetaNode() {
 
 }
 
@@ -17,4 +17,3 @@ func Node() {
 func ShardOwner() {
 
 }
-

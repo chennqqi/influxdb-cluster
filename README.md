@@ -61,3 +61,19 @@ This immediately closes the current shard group, forcing a new shard group to be
 That new shard group will inherit the latest retention policy and data node changes and 
 will then copy itself appropriately to the newly available data nodes. 
 Run `influxd-ctl truncate-shards help` for more information on the command.
+
+
+## Queries in a Cluster
+
+Queries in a cluster are distributed based on the time range being queried and the replication factor of the data. 
+For example if the retention policy has a replication factor of 4, the coordinating data node receiving the query 
+randomly picks any of the 4 data nodes that store a replica of the shard(s) to receive the query. If we assume that 
+the system has shard durations of one day, then for each day of time covered by a query the coordinating node will 
+select one data node to receive the query for that day. The coordinating node will execute and fulfill the query 
+locally whenever possible. If a query must scan multiple shard groups (multiple days in our example above), 
+the coordinating node will will forward queries to other nodes for shard(s) it does not have locally. 
+The queries are forwarded in parallel to scanning its own local data. The queries are distributed to as 
+many nodes as required to query each shard group once. As the results come back from each data node, 
+the coordinating data node combines them into the final result that gets returned to the user.
+
+
