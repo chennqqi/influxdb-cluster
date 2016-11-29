@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/services/meta/internal"
+	"github.com/zhexuany/influxdb-cluster/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
@@ -208,13 +208,11 @@ func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
 	return nil
 }
 
-//TODO finish these
 func (s *store) raftOpened() bool {
-
+	return s.opened
 }
 
 func (s *store) ready() bool {
-
 }
 
 func (s *store) reset() error {
@@ -242,7 +240,7 @@ func (s *store) snapshot() (*Data, error) {
 }
 
 //TODO
-func (s *store) setSnapshot() {}
+func (s *store) setSnapshot(data *Data) {}
 
 // afterIndex returns a channel that will be closed to signal
 // the caller when an updated snapshot is available.
@@ -344,10 +342,19 @@ func (s *store) otherMetaServersHTTP() []string {
 	return a
 }
 
-//TODO
-func (s *store) dataNode() {}
+func (s *store) dataNode() meta.NodeInfos {
+	return s.data.DataNodes
+}
 
-func (s *stroe) dataNodeByTCPHost() {}
+func (s *store) dataNodeByTCPHost() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var a []string
+	for _, n := range s.data.DataNodes {
+		a = append(a, n.Host)
+	}
+	return a
+}
 
 // index returns the current store index.
 func (s *store) index() uint64 {
@@ -396,7 +403,8 @@ func (s *store) leave(n *NodeInfo) error {
 	return s.raftState.removePeer(n.TCPHost)
 }
 
-func (s *stroe) removePeer() {
+func (s *store) removePeer(peer string) error {
+	return s.raftState.removePeer(peer)
 }
 
 // createMetaNode is used by the join command to create the metanode int
@@ -424,68 +432,68 @@ func (s *store) createMetaNode(addr, raftAddr string) error {
 func (s *store) deleteMetaNode(addr, raftAddr string) error {
 }
 
-func (s *store) createDataNode() {
+func (s *store) createDataNode() error {
 }
-func (s *store) deleteDataNode() {
+func (s *store) deleteDataNode() error {
 }
-func (s *store) updateDataNode() {
+func (s *store) updateDataNode() error {
 }
-func (s *store) nodeByHTTPAddr() {
+func (s *store) nodeByHTTPAddr() error {
 }
-func (s *store) copyShard() {
+func (s *store) copyShard() error {
 }
-func (s *store) removeShard() {
+func (s *store) removeShard() error {
 }
-func (s *store) killCopyShard() {
+func (s *store) killCopyShard() error {
 }
 
 // remoteNodeError.Error() {
 
-func (s *store) executeCopyShardStatus() {
+func (s *store) executeCopyShardStatus() error {
 }
-func (s *store) copyShardStatus() {
+func (s *store) copyShardStatus() error {
 }
-func (s *store) user() {
+func (s *store) user() error {
 }
-func (s *store) users() {
+func (s *store) users() error {
 }
-func (s *store) adminExists() {
+func (s *store) adminExists() error {
 }
-func (s *store) createUser() {
+func (s *store) createUser() error {
 }
-func (s *store) deleteUser() {
+func (s *store) deleteUser() error {
 }
-func (s *store) setUserPassword() {
+func (s *store) setUserPassword() error {
 }
-func (s *store) addUserPermissions() {
+func (s *store) addUserPermissions() error {
 }
-func (s *store) removeUserPermissions() {
+func (s *store) removeUserPermissions() error {
 }
-func (s *store) role() {
+func (s *store) role() error {
 }
-func (s *store) roles() {
+func (s *store) roles() error {
 }
-func (s *store) createRole() {
+func (s *store) createRole() error {
 }
 func (s *store) deleteRole() {
 }
-func (s *store) addRoleUsers() {
+func (s *store) addRoleUsers() error {
 }
-func (s *store) removeRoleUsers() {
+func (s *store) removeRoleUsers() error {
 }
-func (s *store) addRolePermissions() {
+func (s *store) addRolePermissions() erorr {
 }
-func (s *store) removeRolePermissions() {
+func (s *store) removeRolePermissions() error {
 }
-func (s *store) changeRoleName() {
+func (s *store) changeRoleName() error {
 }
-func (s *store) truncateShardGroups() {
+func (s *store) truncateShardGroups() error {
 }
-func (s *store) authenticate() {
+func (s *store) authenticate() error {
 }
-func (s *store) authorized() {
+func (s *store) authorized() error {
 }
-func (s *store) authorizedScoped() {
+func (s *store) authorizedScoped() error {
 }
-func (s *store) updateRetentionPolicy() {
+func (s *store) updateRetentionPolicy() error {
 }
