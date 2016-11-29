@@ -9,7 +9,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
 	"github.com/influxdata/influxdb/influxql"
-	"github.com/influxdata/influxdb/services/meta/internal"
+	"github.com/zhexuany/influxdb-cluster/meta/internal"
 )
 
 // storeFSM represents the finite state machine used by Store to interact with Raft.
@@ -27,6 +27,7 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	defer s.mu.Unlock()
 
 	err := func() interface{} {
+		//TODO need add more command and also delete unused command
 		switch cmd.GetType() {
 		case internal.Command_RemovePeerCommand:
 			return fsm.applyRemovePeerCommand(&cmd)
@@ -88,6 +89,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applyCreateDataNodeCommand(&cmd)
 		case internal.Command_DeleteDataNodeCommand:
 			return fsm.applyDeleteDataNodeCommand(&cmd)
+		case internal.AddShardOwnerCommand:
+			return fsm.applyAddShardOwnerCommand(&cmd)
 		default:
 			panic(fmt.Errorf("cannot apply command: %x", l.Data))
 		}
@@ -588,7 +591,7 @@ func (fsm *storeFSM) applyDeleteDataNodeCommand(cmd *internal.Command) interface
 	return nil
 }
 
-//TODO finish these function
+//TODO finish these functions
 func (fsm *storeFSM) applyUpdateDataNodeCommand()            {}
 func (fsm *storeFSM) applyCreateDatabaseCommand()            {}
 func (fsm *storeFSM) applyDropDatabaseCommand()              {}
