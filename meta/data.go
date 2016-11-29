@@ -153,7 +153,7 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 					orphanedShards []ShardInfo
 				)
 				// Look through all shards in the shard group and
-				// determine (1) if a shard no longer has any o
+				// determine (1) if a shard no longer has any owner
 				// (orphaned); (2) if all shards in the shard group
 				// are orphaned; and (3) the number of shards in this
 				// group owned by each data node in the cluster.
@@ -169,8 +169,8 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 					}
 
 					if nodeIdx > -1 {
-						// Data node owns shard, so relinquish ohip
-						// and set new o on the shard.
+						// Data node owns shard, so relinquish ownerhip
+						// and set new owner on the shard.
 						s.Owners = append(s.Owners[:nodeIdx], s.Owners[nodeIdx+1:]...)
 						data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = s.Owners
 					}
@@ -190,7 +190,7 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 				}
 
 				// Reassign any orphaned shards. Delete the node we're
-				// dropping from the list of potential new o.
+				// dropping from the list of potential new owner.
 				delete(nodeOwnerFreqs, int(id))
 
 				for _, orphan := range orphanedShards {
@@ -273,7 +273,7 @@ func (data *Data) UpdateDataNode(nodeID uint64, host, tcpHost string) error {
 
 // DeleteDataNode removes a node from the Meta store.
 //
-// If necessary, DeleteDataNode reassigns ohip of any shards that
+// If necessary, DeleteDataNode reassigns ownerhip of any shards that
 // would otherwise become orphaned by the removal of the node from the
 // cluster.
 func (data *Data) DeleteDataNode(id uint64) error {
