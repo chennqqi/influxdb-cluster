@@ -1,6 +1,5 @@
 # influxdb-cluster
-A plugin for influxdb which make it distributed. 
-In this framework, we have two different nodes. Then main part of this sytem 
+Meta node only communicates wilt meta node. Data node can not just communicate with data node but also can communicate with meta node. A plugin for influxdb which make it distributed. In this framework, we have two different nodes. Then main part of this sytem 
 is `Meta` and second part of this system is `Data`. They both have different role 
 in this system. 
 
@@ -64,7 +63,6 @@ Run `influxd-ctl truncate-shards help` for more information on the command.
 
 
 ## Queries in a Cluster
-
 Queries in a cluster are distributed based on the time range being queried and the replication factor of the data. 
 For example if the retention policy has a replication factor of 4, the coordinating data node receiving the query 
 randomly picks any of the 4 data nodes that store a replica of the shard(s) to receive the query. If we assume that 
@@ -76,4 +74,71 @@ The queries are forwarded in parallel to scanning its own local data. The querie
 many nodes as required to query each shard group once. As the results come back from each data node, 
 the coordinating data node combines them into the final result that gets returned to the user.
 
+
+
+
+
+UpdateShard is called by AddShardOwner. 
+
+UpdateShard is called by AddShardOwner. Additionally, applyAddShardOwnerCommand call the AddShardOwner in raft_store.go. 
+I guess UpdateShard is actually update all shards according to the information in cluster.  
+
+~~~go
+RetentionPolicyInfo
+ 	Name
+	ReplicaN
+	Duration
+	ShardGroupDuration 
+	ShardGroups []ShardGroupInfo
+
+ShardGroupDuration will be used during creation of ShardGroups. The snippet is the following:
+	sg := ShardGroupInfo{}
+	sg.StartTime = timestamp.Truncate(rpi.ShardGroupDuration).UTC()
+	sg.EndTime = timestamp.Add(rpi.ShardGroupDuration).UTC()
+	// after set endtime, we need check whether this end time exceeds the MaxNanotime in system.
+
+ShardGroupInfo
+	ID
+	StartTime 
+	EndTime
+	DeletedAt
+	ShardsInfo[]
+	TruncatedAt
+	
+ShardInfo
+	ID 
+	ShardOwner
+
+ShardOwner
+	NodeID
+
+applyAddShardOwnerCommand -> AddShardOwner  -> if success, then UpdateShard
+~~~
+
+For single node, the shardOwner is always the node itself. But for cluster version, that is not true at all. 
+
+For a cluster system, we will have nodes which will join or leave cluster. when these operation happens. we need add shardOwner. 
+
+2 nodes with replicating factor 1, then for each shardGroup, such shardGroup will create 2 shards. 1, 2. 1 -> a. 2 -> b. 
+If replication factor is 2, then for each shardGroup, it only need created 1 shards.i.e. 1 -> a, 1-> b. 
+
+The size of Shards is determined by replication factor and data nodes. The formula for it is s = N/X where n is the number of shards and X is the replication factor. If the replication factor is 4 here in this case and the number of data node is 4. Each shardGroup will only have 1 shard. 1 -> a, 1 -> b, 1 -> 3
+1 -> 4. We can just randomly pick one data nodes and let it receive such query. If number of data node is 8 here. The shards in single shard group will increase to 2. (this is actually similar with 2 4 cases.) 1 -> a, 1 -> b, 1 -> c 1-> d; 2 ->e 2-> f 2-> e 2-> g 2-> h.
+The ideal config is that we have 10 nodes and the replication factor is just 2. Then we need create 5 shards inside one shardsGroup. 
+
+
+when we try to write into this cluster system, we take the measurement and tag set as our key. So we know which shards that this write should go to. 
+
+Queries in a Cluster Design: 
+
+
+## Roles
+	Roles are groups of permissions. A single role can belong to several cluster accounts. Only web console Admin users can manage roles.InfluxEnterprise clusters have two built-in roles:
+
+## Permissions
+https://docs.influxdata.com/enterprise/v1.1/features/users/#permissions
+
+
+## OSS to Cluster migration.
+https://docs.influxdata.com/enterprise/v1.1/guides/migration/
 
