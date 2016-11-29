@@ -153,7 +153,7 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 					orphanedShards []ShardInfo
 				)
 				// Look through all shards in the shard group and
-				// determine (1) if a shard no longer has any owners
+				// determine (1) if a shard no longer has any o
 				// (orphaned); (2) if all shards in the shard group
 				// are orphaned; and (3) the number of shards in this
 				// group owned by each data node in the cluster.
@@ -169,8 +169,8 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 					}
 
 					if nodeIdx > -1 {
-						// Data node owns shard, so relinquish ownership
-						// and set new owners on the shard.
+						// Data node owns shard, so relinquish ohip
+						// and set new o on the shard.
 						s.Owners = append(s.Owners[:nodeIdx], s.Owners[nodeIdx+1:]...)
 						data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = s.Owners
 					}
@@ -190,7 +190,7 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 				}
 
 				// Reassign any orphaned shards. Delete the node we're
-				// dropping from the list of potential new owners.
+				// dropping from the list of potential new o.
 				delete(nodeOwnerFreqs, int(id))
 
 				for _, orphan := range orphanedShards {
@@ -273,7 +273,7 @@ func (data *Data) UpdateDataNode(nodeID uint64, host, tcpHost string) error {
 
 // DeleteDataNode removes a node from the Meta store.
 //
-// If necessary, DeleteDataNode reassigns ownership of any shards that
+// If necessary, DeleteDataNode reassigns ohip of any shards that
 // would otherwise become orphaned by the removal of the node from the
 // cluster.
 func (data *Data) DeleteDataNode(id uint64) error {
@@ -455,54 +455,86 @@ func (data *Data) RemovePendingShardOwner(id uint64) error {
 
 }
 
-//ShardLocation return NodeInfos which is the owners of the Shard
-func (data *Data) ShardLocation(shardID uint64) ([]meta.ShardOwner, *meta.ShardInfo) {
+//ShardLocation return NodeInfos which is the o of the Shard
+func (data *Data) ShardLocation(shardID uint64) (*meta.ShardInfo, error) {
 	for dbidx, dbi := range data.Databases {
 		for rpidx, rpi := range dbi.RetentionPolicies {
 			for sgidx, sg := range rpi.ShardGroups {
 				for sidx, s := range sg.Shards {
+					//found such shards, return shards
 					if s.ID == shardID {
-						return s.Owners, s
+						return s, nil
 					}
 				}
 			}
 		}
 	}
-
-	fmt.Errorf("Could not find such shard in this cluster")
-	return nil, nil
+	//does not find any shards assoicated with this shardID, just reutn nil, nil
+	return nil, fmt.Errorf("failed to find shards assoicated with %d", shardID)
 }
 
 // UpdateShard will update ShardOwner of a Shard according to ShardID
-func (data *Data) UpdateShard(shard *meta.ShardInfo, newOwners []meta.ShardOwner) error {
-	shard.Owners = newOwners
+func (data *Data) UpdateShard(shardID uint64, newOwners []meta.ShardOwner) {
+	for dbidx, dbi := range data.Databases {
+		for rpidx, rpi := range dbi.RetentionPolicies {
+			for sgidx, sg := range rpi.ShardGroups {
+				for sidx, s := range sg.Shards {
+					//found such shards, return shards
+					if s.ID == shardID {
+						s.Owners = newOwners
+					}
+				}
+			}
+		}
+	}
+	return fmt.Errorf("Failed to find Shard assoicated with shard ID", shardID)
 }
 
 // AddShardOwner will update a shards labelled by shardID in this node if such shards ownby this newly adding node
-func (data *Data) AddShardOwner(shardID, nodeID uint64) bool {
-	si := data.ShardLocation(shardID)
-	if si != nil {
+func (data *Data) AddShardOwner(shardID, nodeID uint64) error {
+	si, err := data.ShardLocation(shardID)
+	if err != nil {
 		if !si.OwnedBy(nodeID) {
-			si.Owners = append(so.Owners, meta.ShardOwner{NodeID: nodeID})
-			data.UpdateShard(s, sort.Sort(si.Owners))
-			return true
+			o := si.Owners
+			o = append(o, meta.ShardOwner{NodeID: nodeID})
+			sort.Sort(o)
+			return data.UpdateShard(shardID, o)
 		}
 	}
-	return false
+	return err
 }
 
 // RemoveShardOwner will remove all shards in this node if such shard owned by this node
 func (data *Data) RemoveShardOwner(shardID, nodeID uint64) error {
-	so, si := data.ShardLocation(shardID)
-	//data.PruneShard()
-	if !si.OwnedBy(nodeID) {
+	si, err := data.ShardLocation(shardID)
+	if err != nil {
+		if si.OwnedBy(nodeID) {
+			O, _ := data.PruneShard(si, nodeID)
+			data.UpdateShard(shardID, o)
+		}
 	}
+	return err
 }
 
-func (data *Data) PruneShard(s *meta.ShardInfo) error {
+func (data *Data) PruneShard(si meta.ShardInfo, nodeID uint64) ([]meta.ShardOwner, error) {
+	found := -1
+	for i, o := range si.Owners {
+		if o.NodeID == nodeID {
+			found = i
+			break
+		}
+	}
 
+	if found != -1 {
+		copy(si.Owners[found:], si.Owners[found+1:])
+		si.Owners[len(si.Owners)-1] = nil
+		si.Owners = si.Owners[:len(si.Owners)-1]
+		return si.Owners, nil
+	}
+	return nil, fmt.Errorf("failed to find shard owner %d", nodeID)
 }
 
+//TODO all role can be waited until cluster works fine
 func (data *Data) CreateRole() error {
 	//make map
 }
@@ -681,25 +713,27 @@ func (data *Data) hasPermissions(usr UserInfo) bool {
 	//RoleInfo.Authorized
 }
 
-//TODO finish this
+//TODO finish this until we have a demo to run
 func (data *Data) ImportData(buf []bytes) error {
-	other := Data{}
-	if err := other.UnmarshalBinary(buf); err != nil {
-		return err
-	}
+	// other := Data{}
+	// if err := other.UnmarshalBinary(buf); err != nil {
+	// 	return err
+	// }
 
-	// Restrict(other)
-	for db := range other.Databases {
-		db := other.Database(name)
-		if db == nil {
-			if err = other.CreateDatabase(name); err == nil {
-				return err
-			}
-		}
+	// // Restrict(other)
+	// for dbidx, db := range data.Databases {
+	// 	dbn := other.Database(db.Name)
+	// 	if dbn == nil {
+	// 		if err = other.CreateDatabase(db.Name); err != nil {
+	// 			return err
+	// 		}
+	// 	}
+	// 	for _, rpi := range db.RetentionPolicies {
+	// 		other.CreateRetentionPolicy(dbn.Name, dbn.RetentionPolicy(rpi.Name), false)
+	// 		data.generatedShards(rpi.ShardGroups)
+	// 	}
 
-	}
-	rpi := meta.DatabaseInfo.RetentionPolicy(other.Database(name))
-	data.generatedShards(rpi.ShardGroups)
+	// }
 	//sort
 	//call gcd
 }

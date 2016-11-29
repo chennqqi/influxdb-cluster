@@ -89,6 +89,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applyCreateDataNodeCommand(&cmd)
 		case internal.Command_DeleteDataNodeCommand:
 			return fsm.applyDeleteDataNodeCommand(&cmd)
+		case internal.AddShardOwnerCommand:
+			return fsm.applyAddShardOwnerCommand(&cmd)
 		default:
 			panic(fmt.Errorf("cannot apply command: %x", l.Data))
 		}
@@ -589,7 +591,7 @@ func (fsm *storeFSM) applyDeleteDataNodeCommand(cmd *internal.Command) interface
 	return nil
 }
 
-//TODO finish these function
+//TODO finish these functions
 func (fsm *storeFSM) applyUpdateDataNodeCommand()            {}
 func (fsm *storeFSM) applyCreateDatabaseCommand()            {}
 func (fsm *storeFSM) applyDropDatabaseCommand()              {}
