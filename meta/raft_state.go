@@ -144,7 +144,6 @@ func loadConfigEnvOverrides(prefix string, spec reflect.Value) error {
 	return nil
 }
 
-//TODO remove this func
 func newRaftState(c *Config, addr string) *raftState {
 	return &raftState{
 		config: c,

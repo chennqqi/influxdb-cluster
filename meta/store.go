@@ -239,8 +239,11 @@ func (s *store) snapshot() (*Data, error) {
 	return s.data.Clone(), nil
 }
 
-//TODO
-func (s *store) setSnapshot(data *Data) {}
+func (s *store) setSnapshot(data *Data) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data = data
+}
 
 // afterIndex returns a channel that will be closed to signal
 // the caller when an updated snapshot is available.
@@ -429,13 +432,61 @@ func (s *store) createMetaNode(addr, raftAddr string) error {
 	return s.apply(b)
 }
 
-func (s *store) deleteMetaNode(addr, raftAddr string) error {
+func (s *store) deleteMetaNode(id uint64) error {
+	val := &internal.DeleteMetaNodeCommand{
+		ID: proto.Uint64(id),
+	}
+	t := internal.Command_DeleteMetaNodeCommand
+	cmd := &internal.Command{Type: &t}
+	if err := proto.SetExtension(cmd, internal.E_DeleteMetaNodeCommand_Command, val); err != nil {
+		painc(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return nil
+	}
+
+	return s.apply(b)
 }
 
-func (s *store) createDataNode() error {
+func (s *store) createDataNode(addr, raftAddr string) error {
+	val := &internal.CreateDataNodeCommand{
+		HTTPAddr: proto.String(addr),
+		TCPAddr:  proto.String(raftAddr),
+	}
+	t := internal.Command_CreateDataNodeCommand
+	cmd := &internal.Command{Type: &t}
+	if err := proto.SetExtension(cmd, internal.E_CreateDataNodeCommand_Command, val); err != nil {
+		panic(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return err
+	}
+
+	return s.apply(b)
 }
-func (s *store) deleteDataNode() error {
+
+func (s *store) deleteDataNode(id uint64) error {
+	val := &internal.DeleteDataNodeCommand{
+		ID: id,
+	}
+	t := internal.Command_DeleteDataNodeCommand
+	cmd := &internal.Command{Type: &t}
+	if err := proto.SetExtension(cmd, internal.E_DelteDataNodeCommand_Command, val); err != nil {
+		panic(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return err
+	}
+
+	return s.apply(b)
 }
+
 func (s *store) updateDataNode() error {
 }
 func (s *store) nodeByHTTPAddr() error {
