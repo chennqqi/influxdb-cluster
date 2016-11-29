@@ -142,3 +142,7 @@ https://docs.influxdata.com/enterprise/v1.1/features/users/#permissions
 ## OSS to Cluster migration.
 https://docs.influxdata.com/enterprise/v1.1/guides/migration/
 
+
+## TODO 
+1. All roles
+2. All permissions issue
