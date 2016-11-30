@@ -27,7 +27,7 @@ import (
 
 // handler represents an HTTP handler for the meta service.
 type handler struct {
-	config *Config
+	config *MetaConfig
 
 	logger         *log.Logger
 	loggingEnabled bool // Log every HTTP access.
@@ -51,8 +51,7 @@ type handler struct {
 }
 
 // newHandler returns a new instance of handler with routes.
-func newHandler(c *Config, s *Service) *handler {
-	//TODO makemap
+func newHandler(c *MetaConfig, s *Service) *handler {
 	h := &handler{
 		s:              s,
 		config:         c,

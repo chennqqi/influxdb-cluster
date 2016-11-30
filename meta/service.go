@@ -23,7 +23,7 @@ type Service struct {
 
 	Version string
 
-	config   *Config
+	config   *MetaConfig
 	handler  *handler
 	ln       net.Listener
 	httpAddr string
@@ -38,7 +38,7 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c *Config) *Service {
+func NewService(c *MetaConfig) *Service {
 	s := &Service{
 		config:   c,
 		httpAddr: c.HTTPBindAddress,
@@ -126,18 +126,21 @@ func (s *Service) Open() error {
 	s.store = newStore(s.config, s.remoteAddr(s.httpAddr), s.remoteAddr(s.raftAddr))
 	s.store.node = s.Node
 
-	handler := newHandler(s.config, s)
-	handler.logger = s.Logger
-	handler.store = s.store
-	s.handler = handler
-
 	// Begin listening for requests in a separate goroutine.
-	go s.serve()
+	// TODO remove this
+	// go s.serve()
 
 	if err := s.store.open(s.RaftListener); err != nil {
 		return err
 	}
 
+	//create new handler
+	handler := newHandler(s.config, s)
+	handler.logger = s.Logger
+	handler.store = s.store
+	s.handler = handler
+	//TODO
+	s.handler.startGossiping()
 	return nil
 }
 

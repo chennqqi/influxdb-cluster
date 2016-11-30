@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -37,7 +38,7 @@ type store struct {
 	mu      sync.RWMutex
 	closing chan struct{}
 
-	config      *Config
+	config      *MetaConfig
 	data        *Data
 	raftState   *raftState
 	dataChanged chan struct{}
@@ -52,7 +53,7 @@ type store struct {
 }
 
 // newStore will create a new metastore with the passed in config
-func newStore(c *Config, httpAddr, raftAddr string) *store {
+func newStore(c *MetaConfig, httpAddr, raftAddr string) *store {
 	s := store{
 		data: &Data{
 			Index: 1,
@@ -77,36 +78,6 @@ func newStore(c *Config, httpAddr, raftAddr string) *store {
 func (s *store) open(raftln net.Listener) error {
 	s.logger.Printf("Using data dir: %v", s.path)
 
-	joinPeers, err := s.filterAddr(s.config.JoinPeers, s.httpAddr)
-	if err != nil {
-		return err
-	}
-	joinPeers = s.config.JoinPeers
-
-	var initializePeers []string
-	if len(joinPeers) > 0 {
-		c := NewClient()
-		c.SetMetaServers(joinPeers)
-		c.SetTLS(s.config.HTTPSEnabled)
-		for {
-			peers := c.peers()
-			if !Peers(peers).Contains(s.raftAddr) {
-				peers = append(peers, s.raftAddr)
-			}
-			if len(s.config.JoinPeers)-len(peers) == 0 {
-				initializePeers = peers
-				break
-			}
-
-			if len(peers) > len(s.config.JoinPeers) {
-				s.logger.Printf("waiting for join peers to match config specified. found %v, config specified %v", peers, s.config.JoinPeers)
-			} else {
-				s.logger.Printf("Waiting for %d join peers.  Have %v. Asking nodes: %v", len(s.config.JoinPeers)-len(peers), peers, joinPeers)
-			}
-			time.Sleep(time.Second)
-		}
-	}
-
 	if err := s.setOpen(); err != nil {
 		return err
 	}
@@ -117,28 +88,8 @@ func (s *store) open(raftln net.Listener) error {
 	}
 
 	// Open the raft store.
-	if err := s.openRaft(initializePeers, raftln); err != nil {
+	if err := s.openRaft(raftln); err != nil {
 		return fmt.Errorf("raft: %s", err)
-	}
-
-	if len(joinPeers) > 0 {
-		c := NewClient()
-		c.SetMetaServers(joinPeers)
-		c.SetTLS(s.config.HTTPSEnabled)
-		if err := c.Open(); err != nil {
-			return err
-		}
-		defer c.Close()
-
-		n, err := c.JoinMetaServer(s.httpAddr, s.raftAddr)
-		if err != nil {
-			return err
-		}
-		s.node.ID = n.ID
-		if err := s.node.Save(); err != nil {
-			return err
-		}
-
 	}
 
 	// Wait for a leader to be elected so we know the raft log is loaded
@@ -148,6 +99,8 @@ func (s *store) open(raftln net.Listener) error {
 	}
 
 	// Make sure this server is in the list of metanodes
+	s.mu.Lock()
+	s.mu.Unlock()
 	peers, err := s.raftState.peers()
 	if err != nil {
 		return err
@@ -157,7 +110,7 @@ func (s *store) open(raftln net.Listener) error {
 		// raft will take a little bit to normalize so that this host
 		// will be marked as the leader
 		for {
-			err := s.setMetaNode(s.httpAddr, s.raftAddr)
+			// err := s.waitForLeader(s.config.ElectionTimeout)
 			if err == nil {
 				break
 			}
@@ -193,14 +146,14 @@ func (s *store) peers() []string {
 	return peers
 }
 
-func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
+func (s *store) openRaft(raftln net.Listener) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rs := newRaftState(s.config, s.raftAddr)
 	rs.logger = s.logger
 	rs.path = s.path
 
-	if err := rs.open(s, raftln, initializePeers); err != nil {
+	if err := rs.open(s, raftln); err != nil {
 		return err
 	}
 	s.raftState = rs
@@ -213,9 +166,26 @@ func (s *store) raftOpened() bool {
 }
 
 func (s *store) ready() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.peers()) >= 2
 }
 
-func (s *store) reset() error {
+func (s *store) reset(raftln net.Listener) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.close(); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(filepath.Join(s.path), "/*"); err != nil {
+		return err
+	}
+
+	if err := os.Remove(filepath.Join(s.path, "raft.db")); err != nil {
+		return err
+	}
+
+	return s.open(raftln)
 
 }
 
@@ -261,8 +231,9 @@ func (s *store) afterIndex(index uint64) <-chan struct{} {
 	return s.dataChanged
 }
 
-//TODO
-func (s *store) applied() {}
+func (s *store) applied(timeout time.Duration) bool {
+	return s.raftState.raft.Barrier(timeout)
+}
 
 // WaitForLeader sleeps until a leader is found or a timeout occurs.
 // timeout == 0 means to wait forever.

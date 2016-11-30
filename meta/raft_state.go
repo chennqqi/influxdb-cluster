@@ -162,6 +162,8 @@ func (r *raftState) open(s *store, ln net.Listener) error {
 	if r.config.ClusterTracing {
 		config.Logger = r.logger
 	}
+
+	//call loadConfigEnvOverrides
 	config.HeartbeatTimeout = time.Duration(r.config.HeartbeatTimeout)
 	config.ElectionTimeout = time.Duration(r.config.ElectionTimeout)
 	config.LeaderLeaseTimeout = time.Duration(r.config.LeaderLeaseTimeout)
@@ -181,7 +183,8 @@ func (r *raftState) open(s *store, ln net.Listener) error {
 
 	//check wheather node itself is in peerStore or not
 	if ok := raft.PeerContained(r.peerStore, r.addr); !ok {
-		return fmt.Errorf("Node itself is in peer store")
+		// remove node itself from peer store
+		r.removePeer(r.addr)
 	}
 
 	//call PeerContained
@@ -356,28 +359,6 @@ type raftLayer struct {
 	closed chan struct{}
 }
 
-type raftLayerAddr struct {
-	addr string
-}
-
-func (r *raftLayerAddr) Network() string {
-	return "tcp"
-}
-
-func (r *raftLayerAddr) String() string {
-	return r.addr
-}
-
-// newRaftLayer returns a new instance of raftLayer.
-func newRaftLayer(addr string, ln net.Listener) *raftLayer {
-	return &raftLayer{
-		addr:   &raftLayerAddr{addr},
-		ln:     ln,
-		conn:   make(chan net.Conn),
-		closed: make(chan struct{}),
-	}
-}
-
 // Addr returns the local address for the layer.
 func (l *raftLayer) Addr() net.Addr {
 	return l.addr
@@ -404,7 +385,29 @@ func (l *raftLayer) Accept() (net.Conn, error) { return l.ln.Accept() }
 // Close closes the layer.
 func (l *raftLayer) Close() error { return l.ln.Close() }
 
-//TODO finished this
+type raftLayerAddr struct {
+	addr string
+}
+
+func (r *raftLayerAddr) Network() string {
+	return "tcp"
+}
+
+func (r *raftLayerAddr) String() string {
+	return r.addr
+}
+
+// newRaftLayer returns a new instance of raftLayer.
+func newRaftLayer(addr string, ln net.Listener) *raftLayer {
+	return &raftLayer{
+		addr:   &raftLayerAddr{addr},
+		ln:     ln,
+		conn:   make(chan net.Conn),
+		closed: make(chan struct{}),
+	}
+}
+
+//TODO finished this this funcation called by loadConfigEnvOverrides
 func split() {
 
 }

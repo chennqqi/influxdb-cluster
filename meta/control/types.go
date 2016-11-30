@@ -6,7 +6,7 @@ type NodeByAddr struct {
 }
 
 func (n NodeByAddr) Len() int {
-
+	return len(n)
 }
 
 func (n NodeByAddr) Less(i, j int) bool {

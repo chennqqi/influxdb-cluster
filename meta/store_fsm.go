@@ -27,7 +27,6 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	defer s.mu.Unlock()
 
 	err := func() interface{} {
-		//TODO need add more command and also delete unused command
 		switch cmd.GetType() {
 		case internal.Command_RemovePeerCommand:
 			return fsm.applyRemovePeerCommand(&cmd)
