@@ -177,12 +177,11 @@ func (r *raftState) open(s *store, ln net.Listener) error {
 	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, config.LogOutput)
 
 	// Create peer storage.
-	base := "" //TODO
-	r.peerStore = raft.NewJSONPeers(base, r.transport)
+	r.peerStore = raft.NewJSONPeers(r.path, r.transport)
 
-	peer := "" //TODO
-	if ok := raft.PeerContained(r.peerStore, peer); !ok {
-
+	//check wheather node itself is in peerStore or not
+	if ok := raft.PeerContained(r.peerStore, r.addr); !ok {
+		return fmt.Errorf("Node itself is in peer store")
 	}
 
 	//call PeerContained
