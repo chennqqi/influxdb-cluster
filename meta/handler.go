@@ -77,7 +77,7 @@ func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 	}
 	handler = recovery(handler, name, h.logger) // make sure recovery is always last
 	//TODO need firgure what is the parameter of this func
-	h.authorize()
+	// h.authorize()
 	//authorize
 	//authenticate
 	return handler

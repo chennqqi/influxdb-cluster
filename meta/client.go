@@ -21,6 +21,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/meta"
 	"github.com/zhexuany/influxdb-cluster/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -297,7 +298,7 @@ func (c *Client) ClusterID() uint64 {
 }
 
 // Node returns a node by id.
-func (c *Client) DataNode(id uint64) (*NodeInfo, error) {
+func (c *Client) DataNode(id uint64) (*meta.NodeInfo, error) {
 	for _, n := range c.data().DataNodes {
 		if n.ID == id {
 			return &n, nil
@@ -307,12 +308,12 @@ func (c *Client) DataNode(id uint64) (*NodeInfo, error) {
 }
 
 // DataNodes returns the data nodes' info.
-func (c *Client) DataNodes() ([]NodeInfo, error) {
+func (c *Client) DataNodes() (meta.NodeInfos, error) {
 	return c.data().DataNodes, nil
 }
 
 // CreateDataNode will create a new data node in the metastore
-func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
+func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*meta.NodeInfo, error) {
 	cmd := &internal.CreateDataNodeCommand{
 		HTTPAddr: proto.String(httpAddr),
 		TCPAddr:  proto.String(tcpAddr),
@@ -347,7 +348,7 @@ func (c *Client) RemoveShardOwner() {}
 func (c *Client) UpdateDataNode() {}
 
 // DataNodeByHTTPHost returns the data node with the give http bind address
-func (c *Client) DataNodeByHTTPHost(httpAddr string) (*NodeInfo, error) {
+func (c *Client) DataNodeByHTTPHost(httpAddr string) (*meta.NodeInfo, error) {
 	nodes, _ := c.DataNodes()
 	for _, n := range nodes {
 		if n.Host == httpAddr {
@@ -380,12 +381,12 @@ func (c *Client) DeleteDataNode(id uint64) error {
 }
 
 // MetaNodes returns the meta nodes' info.
-func (c *Client) MetaNodes() ([]NodeInfo, error) {
+func (c *Client) MetaNodes() (meta.NodeInfos, error) {
 	return c.data().MetaNodes, nil
 }
 
 // MetaNodeByAddr returns the meta node's info.
-func (c *Client) MetaNodeByAddr(addr string) *NodeInfo {
+func (c *Client) MetaNodeByAddr(addr string) *meta.NodeInfo {
 	for _, n := range c.data().MetaNodes {
 		if n.Host == addr {
 			return &n
@@ -395,7 +396,7 @@ func (c *Client) MetaNodeByAddr(addr string) *NodeInfo {
 }
 
 // Database returns info for the requested database.
-func (c *Client) Database(name string) (*DatabaseInfo, error) {
+func (c *Client) Database(name string) (*meta.DatabaseInfo, error) {
 	for _, d := range c.data().Databases {
 		if d.Name == name {
 			return &d, nil
@@ -408,7 +409,7 @@ func (c *Client) Database(name string) (*DatabaseInfo, error) {
 }
 
 // Databases returns a list of all database infos.
-func (c *Client) Databases() ([]DatabaseInfo, error) {
+func (c *Client) Databases() (meta.Databases, error) {
 	dbs := c.data().Databases
 	if dbs == nil {
 		return []DatabaseInfo{}, nil
@@ -421,7 +422,7 @@ func (c *Client) defaultRetentionPolicyInfo() {
 }
 
 // CreateDatabase creates a database or returns it if it already exists
-func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
+func (c *Client) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
 	if db, _ := c.Database(name); db != nil {
 		return db, nil
 	}
@@ -439,7 +440,7 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 }
 
 // CreateDatabaseWithRetentionPolicy creates a database with the specified retention policy.
-func (c *Client) CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPolicyInfo) (*DatabaseInfo, error) {
+func (c *Client) CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error) {
 	if rpi.Duration < MinRetentionPolicyDuration && rpi.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
@@ -478,7 +479,7 @@ func (c *Client) DropDatabase(name string) error {
 }
 
 // CreateRetentionPolicy creates a retention policy on the specified database.
-func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
+func (c *Client) CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
 	if rp, _ := c.RetentionPolicy(database, rpi.Name); rp != nil {
 		return rp, nil
 	}
@@ -500,7 +501,7 @@ func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo
 }
 
 // RetentionPolicy returns the requested retention policy info.
-func (c *Client) RetentionPolicy(database, name string) (rpi *RetentionPolicyInfo, err error) {
+func (c *Client) RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error) {
 	db, err := c.Database(database)
 	if err != nil {
 		return nil, err
@@ -535,7 +536,7 @@ func (c *Client) SetDefaultRetentionPolicy(database, name string) error {
 }
 
 // UpdateRetentionPolicy updates a retention policy.
-func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
+func (c *Client) UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate) error {
 	var newName *string
 	if rpu.Name != nil {
 		newName = rpu.Name
@@ -766,7 +767,7 @@ func (c *Client) ShardIDs() []uint64 {
 
 // ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
 // for the specified time range. Shard groups are sorted by start time.
-func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []ShardGroupInfo, err error) {
+func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a meta.ShardGroupInfos, err error) {
 	// Find retention policy.
 	rpi, err := c.data().RetentionPolicy(database, policy)
 	if err != nil {
@@ -785,7 +786,7 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 }
 
 // ShardsByTimeRange returns a slice of shards that may contain data in the time range.
-func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []ShardInfo, err error) {
+func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a meta.ShardInfos, err error) {
 	m := make(map[*ShardInfo]struct{})
 	for _, src := range sources {
 		mm, ok := src.(*influxql.Measurement)

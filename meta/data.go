@@ -62,7 +62,7 @@ func (data *Data) Clone() *Data {
 	return &other
 }
 
-func (data *Data) MetaNode(id uint64) *NodeInfo {
+func (data *Data) MetaNode(id uint64) *meta.NodeInfo {
 	for i := range data.MetaNodes {
 		if data.MetaNodes[i].ID == id {
 			return &data.MetaNodes[i]
