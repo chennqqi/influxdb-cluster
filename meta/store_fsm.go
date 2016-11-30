@@ -27,20 +27,9 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	defer s.mu.Unlock()
 
 	err := func() interface{} {
-		//TODO need add more command and also delete unused command
 		switch cmd.GetType() {
 		case internal.Command_RemovePeerCommand:
 			return fsm.applyRemovePeerCommand(&cmd)
-		case internal.Command_CreateNodeCommand:
-			// create node was in < 0.10.0 servers, we need the peers
-			// list to convert to the appropriate data/meta nodes now
-			peers, err := s.raftState.peers()
-			if err != nil {
-				return err
-			}
-			return fsm.applyCreateNodeCommand(&cmd, peers)
-		case internal.Command_DeleteNodeCommand:
-			return fsm.applyDeleteNodeCommand(&cmd)
 		case internal.Command_CreateDatabaseCommand:
 			return fsm.applyCreateDatabaseCommand(&cmd)
 		case internal.Command_DropDatabaseCommand:
@@ -125,57 +114,6 @@ func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
 	return nil
 }
 
-func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command, peers []string) interface{} {
-	ext, _ := proto.GetExtension(cmd, internal.E_CreateNodeCommand_Command)
-	v := ext.(*internal.CreateNodeCommand)
-
-	// Copy data and update.
-	other := fsm.data.Clone()
-
-	// CreateNode is a command from < 0.10.0 clusters. Every node in
-	// those clusters would be a data node and only the nodes that are
-	// in the list of peers would be meta nodes
-	isMeta := false
-	for _, p := range peers {
-		if v.GetHost() == p {
-			isMeta = true
-			break
-		}
-	}
-
-	if isMeta {
-		if err := other.CreateMetaNode(v.GetHost(), v.GetHost()); err != nil {
-			return err
-		}
-	}
-
-	// Get the only meta node
-	if len(other.MetaNodes) == 1 {
-		metaNode := other.MetaNodes[0]
-
-		if err := other.setDataNode(metaNode.ID, v.GetHost(), v.GetHost()); err != nil {
-			return err
-		}
-	} else {
-		if err := other.CreateDataNode(v.GetHost(), v.GetHost()); err != nil {
-			return err
-		}
-	}
-
-	// If the cluster ID hasn't been set then use the command's random number.
-	if other.ClusterID == 0 {
-		other.ClusterID = uint64(v.GetRand())
-	}
-
-	fsm.data = other
-	return nil
-}
-
-// applyUpdateNodeCommand was in < 0.10.0, noop this now
-func (fsm *storeFSM) applyUpdateNodeCommand(cmd *internal.Command) interface{} {
-	return nil
-}
-
 func (fsm *storeFSM) applyUpdateDataNodeCommand(cmd *internal.Command) interface{} {
 	ext, _ := proto.GetExtension(cmd, internal.E_CreateNodeCommand_Command)
 	v := ext.(*internal.UpdateDataNodeCommand)
@@ -192,11 +130,6 @@ func (fsm *storeFSM) applyUpdateDataNodeCommand(cmd *internal.Command) interface
 	node.TCPHost = v.GetTCPHost()
 
 	fsm.data = other
-	return nil
-}
-
-// applyDeleteNodeCommand is from < 0.10.0. no op for this one
-func (fsm *storeFSM) applyDeleteNodeCommand(cmd *internal.Command) interface{} {
 	return nil
 }
 
@@ -592,50 +525,50 @@ func (fsm *storeFSM) applyDeleteDataNodeCommand(cmd *internal.Command) interface
 }
 
 //TODO finish these functions
-func (fsm *storeFSM) applyUpdateDataNodeCommand()            {}
-func (fsm *storeFSM) applyCreateDatabaseCommand()            {}
-func (fsm *storeFSM) applyDropDatabaseCommand()              {}
-func (fsm *storeFSM) applyCreateRetentionPolicyCommand()     {}
-func (fsm *storeFSM) applyDropRetentionPolicyCommand()       {}
-func (fsm *storeFSM) applySetDefaultRetentionPolicyCommand() {}
-func (fsm *storeFSM) applyUpdateRetentionPolicyCommand()     {}
-func (fsm *storeFSM) applyDropShardCommand()                 {}
-func (fsm *storeFSM) applyCreateShardGroupCommand()          {}
-func (fsm *storeFSM) applyCreateBalancedShardGroupCommand()  {}
-func (fsm *storeFSM) applyDeleteShardGroupCommand()          {}
-func (fsm *storeFSM) applyTruncateShardGroupsCommand()       {}
-func (fsm *storeFSM) applyAddShardOwnerCommand()             {}
-func (fsm *storeFSM) applyRemoveShardOwnerCommand()          {}
-func (fsm *storeFSM) applyCreateContinuousQueryCommand()     {}
-func (fsm *storeFSM) applyDropContinuousQueryCommand()       {}
-func (fsm *storeFSM) applyCreateSubscriptionCommand()        {}
-func (fsm *storeFSM) applyDropSubscriptionCommand()          {}
-func (fsm *storeFSM) applyCreateUserCommand()                {}
-func (fsm *storeFSM) applySetUserPasswordCommand()           {}
-func (fsm *storeFSM) applyDropUserCommand()                  {}
-func (fsm *storeFSM) applyUpdateUserCommand()                {}
-func (fsm *storeFSM) applyAddUserPermissionsCommand()        {}
-func (fsm *storeFSM) applyRemoveUserPermissionsCommand()     {}
-func (fsm *storeFSM) applySetPrivilegeCommand()              {}
-func (fsm *storeFSM) applySetAdminPrivilegeCommand()         {}
-func (fsm *storeFSM) applySetDataCommand()                   {}
-func (fsm *storeFSM) setData()                               {}
-func (fsm *storeFSM) applyImportDataCommand()                {}
-func (fsm *storeFSM) applyCreateRoleCommand()                {}
-func (fsm *storeFSM) applyDropRoleCommand()                  {}
-func (fsm *storeFSM) applyAddRoleUsersCommand()              {}
-func (fsm *storeFSM) applyRemoveRoleUsersCommand()           {}
-func (fsm *storeFSM) applyAddRolePermissionsCommand()        {}
-func (fsm *storeFSM) applyRemoveRolePermissionsCommand()     {}
-func (fsm *storeFSM) applyChangeRoleName()                   {}
-func (fsm *storeFSM) applyCreateMetaNodeCommand()            {}
-func (fsm *storeFSM) applySetMetaNodeCommand()               {}
-func (fsm *storeFSM) applyDeleteMetaNodeCommand()            {}
-func (fsm *storeFSM) applyCreateDataNodeCommand()            {}
-func (fsm *storeFSM) applyDeleteDataNodeCommand()            {}
-func (fsm *storeFSM) applyRemovePendingShardOwnerCommand()   {}
-func (fsm *storeFSM) applyAddPendingShardOwnerCommand()      {}
-func (fsm *storeFSM) applyCommitPendingShardOwnerCommand()   {}
+func (fsm *storeFSM) applyUpdateDataNode(cmd *internal.Command) interface{}            {}
+func (fsm *storeFSM) applyCreateDatabase(cmd *internal.Command) interface{}            {}
+func (fsm *storeFSM) applyDropDatabase(cmd *internal.Command) interface{}              {}
+func (fsm *storeFSM) applyCreateRetentionPolicy(cmd *internal.Command) interface{}     {}
+func (fsm *storeFSM) applyDropRetentionPolicy(cmd *internal.Command) interface{}       {}
+func (fsm *storeFSM) applySetDefaultRetentionPolicy(cmd *internal.Command) interface{} {}
+func (fsm *storeFSM) applyUpdateRetentionPolicy(cmd *internal.Command) interface{}     {}
+func (fsm *storeFSM) applyDropShard(cmd *internal.Command) interface{}                 {}
+func (fsm *storeFSM) applyCreateShardGroup(cmd *internal.Command) interface{}          {}
+func (fsm *storeFSM) applyCreateBalancedShardGroup(cmd *internal.Command) interface{}  {}
+func (fsm *storeFSM) applyDeleteShardGroup(cmd *internal.Command) interface{}          {}
+func (fsm *storeFSM) applyTruncateShardGroups(cmd *internal.Command) interface{}       {}
+func (fsm *storeFSM) applyAddShardOwner(cmd *internal.Command) interface{}             {}
+func (fsm *storeFSM) applyRemoveShardOwner(cmd *internal.Command) interface{}          {}
+func (fsm *storeFSM) applyCreateContinuousQuery(cmd *internal.Command) interface{}     {}
+func (fsm *storeFSM) applyDropContinuousQuery(cmd *internal.Command) interface{}       {}
+func (fsm *storeFSM) applyCreateSubscription(cmd *internal.Command) interface{}        {}
+func (fsm *storeFSM) applyDropSubscription(cmd *internal.Command) interface{}          {}
+func (fsm *storeFSM) applyCreateUser(cmd *internal.Command) interface{}                {}
+func (fsm *storeFSM) applySetUserPassword(cmd *internal.Command) interface{}           {}
+func (fsm *storeFSM) applyDropUser(cmd *internal.Command) interface{}                  {}
+func (fsm *storeFSM) applyUpdateUser(cmd *internal.Command) interface{}                {}
+func (fsm *storeFSM) applyAddUserPermissions(cmd *internal.Command) interface{}        {}
+func (fsm *storeFSM) applyRemoveUserPermissions(cmd *internal.Command) interface{}     {}
+func (fsm *storeFSM) applySetPrivilege(cmd *internal.Command) interface{}              {}
+func (fsm *storeFSM) applySetAdminPrivilege(cmd *internal.Command) interface{}         {}
+func (fsm *storeFSM) applySetData(cmd *internal.Command) interface{}                   {}
+func (fsm *storeFSM) setData()                                                         {}
+func (fsm *storeFSM) applyImportData(cmd *internal.Command) interface{}                {}
+func (fsm *storeFSM) applyCreateRole(cmd *internal.Command) interface{}                {}
+func (fsm *storeFSM) applyDropRole(cmd *internal.Command) interface{}                  {}
+func (fsm *storeFSM) applyAddRoleUsers(cmd *internal.Command) interface{}              {}
+func (fsm *storeFSM) applyRemoveRoleUsers(cmd *internal.Command) interface{}           {}
+func (fsm *storeFSM) applyAddRolePermissions(cmd *internal.Command) interface{}        {}
+func (fsm *storeFSM) applyRemoveRolePermissions(cmd *internal.Command) interface{}     {}
+func (fsm *storeFSM) applyChangeRoleName()                                             {}
+func (fsm *storeFSM) applyCreateMetaNode(cmd *internal.Command) interface{}            {}
+func (fsm *storeFSM) applySetMetaNode(cmd *internal.Command) interface{}               {}
+func (fsm *storeFSM) applyDeleteMetaNode(cmd *internal.Command) interface{}            {}
+func (fsm *storeFSM) applyCreateDataNode(cmd *internal.Command) interface{}            {}
+func (fsm *storeFSM) applyDeleteDataNode(cmd *internal.Command) interface{}            {}
+func (fsm *storeFSM) applyRemovePendingShardOwner(cmd *internal.Command) interface{}   {}
+func (fsm *storeFSM) applyAddPendingShardOwner(cmd *internal.Command) interface{}      {}
+func (fsm *storeFSM) applyCommitPendingShardOwner(cmd *internal.Command) interface{}   {}
 
 func (fsm *storeFSM) Snapshot() (raft.FSMSnapshot, error) {
 	s := (*store)(fsm)

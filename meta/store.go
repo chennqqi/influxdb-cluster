@@ -8,11 +8,12 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/services/meta/internal"
+	"github.com/zhexuany/influxdb-cluster/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
@@ -37,7 +38,7 @@ type store struct {
 	mu      sync.RWMutex
 	closing chan struct{}
 
-	config      *Config
+	config      *MetaConfig
 	data        *Data
 	raftState   *raftState
 	dataChanged chan struct{}
@@ -52,7 +53,7 @@ type store struct {
 }
 
 // newStore will create a new metastore with the passed in config
-func newStore(c *Config, httpAddr, raftAddr string) *store {
+func newStore(c *MetaConfig, httpAddr, raftAddr string) *store {
 	s := store{
 		data: &Data{
 			Index: 1,
@@ -77,36 +78,6 @@ func newStore(c *Config, httpAddr, raftAddr string) *store {
 func (s *store) open(raftln net.Listener) error {
 	s.logger.Printf("Using data dir: %v", s.path)
 
-	joinPeers, err := s.filterAddr(s.config.JoinPeers, s.httpAddr)
-	if err != nil {
-		return err
-	}
-	joinPeers = s.config.JoinPeers
-
-	var initializePeers []string
-	if len(joinPeers) > 0 {
-		c := NewClient()
-		c.SetMetaServers(joinPeers)
-		c.SetTLS(s.config.HTTPSEnabled)
-		for {
-			peers := c.peers()
-			if !Peers(peers).Contains(s.raftAddr) {
-				peers = append(peers, s.raftAddr)
-			}
-			if len(s.config.JoinPeers)-len(peers) == 0 {
-				initializePeers = peers
-				break
-			}
-
-			if len(peers) > len(s.config.JoinPeers) {
-				s.logger.Printf("waiting for join peers to match config specified. found %v, config specified %v", peers, s.config.JoinPeers)
-			} else {
-				s.logger.Printf("Waiting for %d join peers.  Have %v. Asking nodes: %v", len(s.config.JoinPeers)-len(peers), peers, joinPeers)
-			}
-			time.Sleep(time.Second)
-		}
-	}
-
 	if err := s.setOpen(); err != nil {
 		return err
 	}
@@ -117,28 +88,8 @@ func (s *store) open(raftln net.Listener) error {
 	}
 
 	// Open the raft store.
-	if err := s.openRaft(initializePeers, raftln); err != nil {
+	if err := s.openRaft(raftln); err != nil {
 		return fmt.Errorf("raft: %s", err)
-	}
-
-	if len(joinPeers) > 0 {
-		c := NewClient()
-		c.SetMetaServers(joinPeers)
-		c.SetTLS(s.config.HTTPSEnabled)
-		if err := c.Open(); err != nil {
-			return err
-		}
-		defer c.Close()
-
-		n, err := c.JoinMetaServer(s.httpAddr, s.raftAddr)
-		if err != nil {
-			return err
-		}
-		s.node.ID = n.ID
-		if err := s.node.Save(); err != nil {
-			return err
-		}
-
 	}
 
 	// Wait for a leader to be elected so we know the raft log is loaded
@@ -148,6 +99,8 @@ func (s *store) open(raftln net.Listener) error {
 	}
 
 	// Make sure this server is in the list of metanodes
+	s.mu.Lock()
+	s.mu.Unlock()
 	peers, err := s.raftState.peers()
 	if err != nil {
 		return err
@@ -157,7 +110,7 @@ func (s *store) open(raftln net.Listener) error {
 		// raft will take a little bit to normalize so that this host
 		// will be marked as the leader
 		for {
-			err := s.setMetaNode(s.httpAddr, s.raftAddr)
+			// err := s.waitForLeader(s.config.ElectionTimeout)
 			if err == nil {
 				break
 			}
@@ -193,14 +146,14 @@ func (s *store) peers() []string {
 	return peers
 }
 
-func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
+func (s *store) openRaft(raftln net.Listener) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rs := newRaftState(s.config, s.raftAddr)
 	rs.logger = s.logger
 	rs.path = s.path
 
-	if err := rs.open(s, raftln, initializePeers); err != nil {
+	if err := rs.open(s, raftln); err != nil {
 		return err
 	}
 	s.raftState = rs
@@ -208,16 +161,31 @@ func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
 	return nil
 }
 
-//TODO finish these
 func (s *store) raftOpened() bool {
-
+	return s.opened
 }
 
 func (s *store) ready() bool {
-
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.peers()) >= 2
 }
 
-func (s *store) reset() error {
+func (s *store) reset(raftln net.Listener) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.close(); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(filepath.Join(s.path), "/*"); err != nil {
+		return err
+	}
+
+	if err := os.Remove(filepath.Join(s.path, "raft.db")); err != nil {
+		return err
+	}
+
+	return s.open(raftln)
 
 }
 
@@ -241,8 +209,11 @@ func (s *store) snapshot() (*Data, error) {
 	return s.data.Clone(), nil
 }
 
-//TODO
-func (s *store) setSnapshot() {}
+func (s *store) setSnapshot(data *Data) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data = data
+}
 
 // afterIndex returns a channel that will be closed to signal
 // the caller when an updated snapshot is available.
@@ -260,8 +231,9 @@ func (s *store) afterIndex(index uint64) <-chan struct{} {
 	return s.dataChanged
 }
 
-//TODO
-func (s *store) applied() {}
+func (s *store) applied(timeout time.Duration) bool {
+	return s.raftState.raft.Barrier(timeout)
+}
 
 // WaitForLeader sleeps until a leader is found or a timeout occurs.
 // timeout == 0 means to wait forever.
@@ -344,10 +316,19 @@ func (s *store) otherMetaServersHTTP() []string {
 	return a
 }
 
-//TODO
-func (s *store) dataNode() {}
+func (s *store) dataNode() meta.NodeInfos {
+	return s.data.DataNodes
+}
 
-func (s *stroe) dataNodeByTCPHost() {}
+func (s *store) dataNodeByTCPHost() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var a []string
+	for _, n := range s.data.DataNodes {
+		a = append(a, n.Host)
+	}
+	return a
+}
 
 // index returns the current store index.
 func (s *store) index() uint64 {
@@ -396,7 +377,8 @@ func (s *store) leave(n *NodeInfo) error {
 	return s.raftState.removePeer(n.TCPHost)
 }
 
-func (s *stroe) removePeer() {
+func (s *store) removePeer(peer string) error {
+	return s.raftState.removePeer(peer)
 }
 
 // createMetaNode is used by the join command to create the metanode int
@@ -421,71 +403,119 @@ func (s *store) createMetaNode(addr, raftAddr string) error {
 	return s.apply(b)
 }
 
-func (s *store) deleteMetaNode(addr, raftAddr string) error {
+func (s *store) deleteMetaNode(id uint64) error {
+	val := &internal.DeleteMetaNodeCommand{
+		ID: proto.Uint64(id),
+	}
+	t := internal.Command_DeleteMetaNodeCommand
+	cmd := &internal.Command{Type: &t}
+	if err := proto.SetExtension(cmd, internal.E_DeleteMetaNodeCommand_Command, val); err != nil {
+		painc(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return nil
+	}
+
+	return s.apply(b)
 }
 
-func (s *store) createDataNode() {
+func (s *store) createDataNode(addr, raftAddr string) error {
+	val := &internal.CreateDataNodeCommand{
+		HTTPAddr: proto.String(addr),
+		TCPAddr:  proto.String(raftAddr),
+	}
+	t := internal.Command_CreateDataNodeCommand
+	cmd := &internal.Command{Type: &t}
+	if err := proto.SetExtension(cmd, internal.E_CreateDataNodeCommand_Command, val); err != nil {
+		panic(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return err
+	}
+
+	return s.apply(b)
 }
-func (s *store) deleteDataNode() {
+
+func (s *store) deleteDataNode(id uint64) error {
+	val := &internal.DeleteDataNodeCommand{
+		ID: id,
+	}
+	t := internal.Command_DeleteDataNodeCommand
+	cmd := &internal.Command{Type: &t}
+	if err := proto.SetExtension(cmd, internal.E_DelteDataNodeCommand_Command, val); err != nil {
+		panic(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return err
+	}
+
+	return s.apply(b)
 }
-func (s *store) updateDataNode() {
+
+func (s *store) updateDataNode() error {
 }
-func (s *store) nodeByHTTPAddr() {
+func (s *store) nodeByHTTPAddr() error {
 }
-func (s *store) copyShard() {
+func (s *store) copyShard() error {
 }
-func (s *store) removeShard() {
+func (s *store) removeShard() error {
 }
-func (s *store) killCopyShard() {
+func (s *store) killCopyShard() error {
 }
 
 // remoteNodeError.Error() {
 
-func (s *store) executeCopyShardStatus() {
+func (s *store) executeCopyShardStatus() error {
 }
-func (s *store) copyShardStatus() {
+func (s *store) copyShardStatus() error {
 }
-func (s *store) user() {
+func (s *store) user() error {
 }
-func (s *store) users() {
+func (s *store) users() error {
 }
-func (s *store) adminExists() {
+func (s *store) adminExists() error {
 }
-func (s *store) createUser() {
+func (s *store) createUser() error {
 }
-func (s *store) deleteUser() {
+func (s *store) deleteUser() error {
 }
-func (s *store) setUserPassword() {
+func (s *store) setUserPassword() error {
 }
-func (s *store) addUserPermissions() {
+func (s *store) addUserPermissions() error {
 }
-func (s *store) removeUserPermissions() {
+func (s *store) removeUserPermissions() error {
 }
-func (s *store) role() {
+func (s *store) role() error {
 }
-func (s *store) roles() {
+func (s *store) roles() error {
 }
-func (s *store) createRole() {
+func (s *store) createRole() error {
 }
 func (s *store) deleteRole() {
 }
-func (s *store) addRoleUsers() {
+func (s *store) addRoleUsers() error {
 }
-func (s *store) removeRoleUsers() {
+func (s *store) removeRoleUsers() error {
 }
-func (s *store) addRolePermissions() {
+func (s *store) addRolePermissions() erorr {
 }
-func (s *store) removeRolePermissions() {
+func (s *store) removeRolePermissions() error {
 }
-func (s *store) changeRoleName() {
+func (s *store) changeRoleName() error {
 }
-func (s *store) truncateShardGroups() {
+func (s *store) truncateShardGroups() error {
 }
-func (s *store) authenticate() {
+func (s *store) authenticate() error {
 }
-func (s *store) authorized() {
+func (s *store) authorized() error {
 }
-func (s *store) authorizedScoped() {
+func (s *store) authorizedScoped() error {
 }
-func (s *store) updateRetentionPolicy() {
+func (s *store) updateRetentionPolicy() error {
 }

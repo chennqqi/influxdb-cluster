@@ -89,22 +89,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
-	_, err := influxdb.LoadNode(c.Meta.Dir)
-
-	//call filepath.join
-	//readfile
-	//make chan
-	//make chan
-	//meta.NewClietn
-	//call meta.Client.SetAuthInfo
-	//makechan
-	//meta.Server.HTTPAddr
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		}
-	}
-
 	// In 0.10.0 bind-address got moved to the top level. Check
 	// The old location to keep things backwards compatible
 	bind := c.BindAddress
