@@ -3,10 +3,10 @@ package meta
 import (
 	"errors"
 	"net"
+	"reflect"
 	"time"
 
 	"github.com/influxdata/influxdb/toml"
-	"github.com/zhexuany/influxdb-cluster/meta"
 )
 
 const (

@@ -11,6 +11,7 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/zhexuany/influxdb-cluster/meta"
 )
@@ -26,7 +27,7 @@ type BuildInfo struct {
 	Version string
 	Commit  string
 	Branch  string
-	Time    string
+	Tags    string
 }
 
 // Server represents a container for the metadata and storage data and services.
@@ -45,6 +46,8 @@ type Server struct {
 
 	MetaClient *meta.Client
 
+	Service *meta.Service
+
 	// Server reporting and registration
 	reportingDisabled bool
 
@@ -54,12 +57,6 @@ type Server struct {
 
 	// httpAPIAddr is the host:port combination for the main HTTP API for querying and writing data
 	httpAPIAddr string
-
-	// httpUseTLS specifies if we should use a TLS connection to the http servers
-	httpUseTLS bool
-
-	// tcpAddr is the host:port combination for the TCP listener that services mux onto
-	tcpAddr string
 
 	config *Config
 
@@ -92,6 +89,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// In 0.10.0 bind-address got moved to the top level. Check
 	// The old location to keep things backwards compatible
 	bind := c.BindAddress
+	//strings.Contains()
+	// influxdb.Node.Save()
 
 	s := &Server{
 		buildInfo: *buildInfo,
@@ -113,7 +112,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		config:    c,
 		logOutput: os.Stderr,
 	}
-	s.Monitor = monitor.New(s, c.Monitor)
 
 	if err := s.MetaClient.Open(); err != nil {
 		return nil, err
@@ -151,6 +149,7 @@ func (s *Server) Open() error {
 	// Start profiling, if set.
 	startProfile(s.CPUProfile, s.MemProfile)
 
+	log.Println("Opening Server for meta service")
 	// Open shared TCP connection.
 	ln, err := net.Listen("tcp", s.BindAddress)
 	if err != nil {
@@ -163,6 +162,8 @@ func (s *Server) Open() error {
 	mux := tcp.NewMux()
 	go mux.Listen(ln)
 
+	// s.Service.Open()
+	// s.Service.Err()
 	return nil
 }
 
@@ -187,32 +188,9 @@ func (s *Server) Close() error {
 		s.Listener.Close()
 	}
 
-	// Close services to allow any inflight requests to complete
-	// and prevent new requests from being accepted.
-	for _, service := range s.Services {
-		service.Close()
-	}
+	s.MetaClient.Close()
 
-	if s.PointsWriter != nil {
-		s.PointsWriter.Close()
-	}
-
-	if s.QueryExecutor != nil {
-		s.QueryExecutor.Close()
-	}
-
-	// Close the TSDBStore, no more reads or writes at this point
-	if s.TSDBStore != nil {
-		s.TSDBStore.Close()
-	}
-
-	if s.Subscriber != nil {
-		s.Subscriber.Close()
-	}
-
-	if s.MetaClient != nil {
-		s.MetaClient.Close()
-	}
+	s.service.Close()
 
 	close(s.closing)
 	return nil
@@ -294,6 +272,10 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 			return
 		}
 	}
+}
+
+func (s *Server) HTTPAddr() string {
+	return s.httpAPIAddr
 }
 
 // Service represents a service attached to the server.

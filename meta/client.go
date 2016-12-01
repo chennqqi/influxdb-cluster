@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"http"
 	"io"
 	"io/ioutil"
 	"log"
@@ -21,7 +20,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
-	"github.com/influxdata/influxdb/meta"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/zhexuany/influxdb-cluster/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -61,8 +60,8 @@ type Client struct {
 	changed     chan struct{}
 	closing     chan struct{}
 	cacheData   *Data
-	Path        string
-	AuthInfo    string
+	path        string
+	authInfo    string
 	HTTPClient  *http.Client
 
 	// Authentication cache.
@@ -148,11 +147,11 @@ func (c *Client) CheckMetaServers() {
 }
 
 func (c *Client) Path() string {
-	return c.Path
+	return c.path
 }
 
 func (c *Client) SetPath(path string) {
-	c.Path = path
+	c.path = path
 }
 
 func (c *Client) TLS() bool {
@@ -166,7 +165,7 @@ func (c *Client) SetTLS(v bool) { c.tls = v }
 func (c *Client) AuthInfo() {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.AuthInfo
+	return c.authInfo
 
 }
 
@@ -360,7 +359,7 @@ func (c *Client) DataNodeByHTTPHost(httpAddr string) (*meta.NodeInfo, error) {
 }
 
 // DataNodeByTCPHost returns the data node with the give http bind address
-func (c *Client) DataNodeByTCPHost(tcpAddr string) (*NodeInfo, error) {
+func (c *Client) DataNodeByTCPHost(tcpAddr string) (*meta.NodeInfo, error) {
 	nodes, _ := c.DataNodes()
 	for _, n := range nodes {
 		if n.TCPHost == tcpAddr {
@@ -409,7 +408,7 @@ func (c *Client) Database(name string) (*meta.DatabaseInfo, error) {
 }
 
 // Databases returns a list of all database infos.
-func (c *Client) Databases() (meta.Databases, error) {
+func (c *Client) Databases() ([]meta.DatabaseInfo, error) {
 	dbs := c.data().Databases
 	if dbs == nil {
 		return []DatabaseInfo{}, nil
@@ -786,7 +785,7 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 }
 
 // ShardsByTimeRange returns a slice of shards that may contain data in the time range.
-func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a meta.ShardInfos, err error) {
+func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
 	m := make(map[*ShardInfo]struct{})
 	for _, src := range sources {
 		mm, ok := src.(*influxql.Measurement)
@@ -814,7 +813,7 @@ func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Tim
 }
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
-func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	if sg, _ := c.data().data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		return sg, nil
 	}
@@ -882,7 +881,7 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 }
 
 // ShardOwner returns the owning shard group info for a specific shard.
-func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *ShardGroupInfo) {
+func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo) {
 	for _, dbi := range c.data().Databases {
 		for _, rpi := range dbi.RetentionPolicies {
 			for _, g := range rpi.ShardGroups {
@@ -906,7 +905,7 @@ func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *Shard
 
 // JoinMetaServer will add the passed in tcpAddr to the raft peers and add a MetaNode to
 // the metastore
-func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) (*NodeInfo, error) {
+func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) (*meta.NodeInfo, error) {
 	node := &NodeInfo{
 		Host:    httpAddr,
 		TCPHost: tcpAddr,
@@ -969,7 +968,7 @@ func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) (*NodeInfo, error) {
 	return node, nil
 }
 
-func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
+func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) (*meta.NodeInfo, error) {
 	cmd := &internal.CreateMetaNodeCommand{
 		HTTPAddr: proto.String(httpAddr),
 		TCPAddr:  proto.String(tcpAddr),
@@ -1340,7 +1339,7 @@ func (c *Client) updateAuthCache() {
 
 	c.authCache = newCache
 }
-func (c *CLient) updateMetaServers() {}
+func (c *Client) updateMetaServers() {}
 
 func (c *Client) saveMetaServers() {}
 

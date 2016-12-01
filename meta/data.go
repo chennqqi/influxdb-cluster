@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
-	internal "github.com/zhexuany/influxdb-cluster/meta/internal"
+	"github.com/zhexuany/influxdb-cluster/meta/internal"
 )
 
 //go:generate protoc --gogo_out=. internal/meta.proto
@@ -215,7 +215,7 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 }
 
 // DataNode returns a node by id.
-func (data *Data) DataNode(id uint64) *NodeInfo {
+func (data *Data) DataNode(id uint64) *meta.NodeInfo {
 	for i := range data.DataNodes {
 		if data.DataNodes[i].ID == id {
 			return &data.DataNodes[i]
@@ -714,7 +714,7 @@ func (data *Data) hasPermissions(usr UserInfo) bool {
 }
 
 //TODO finish this until we have a demo to run
-func (data *Data) ImportData(buf []bytes) error {
+func (data *Data) ImportData(buf []byte) error {
 	// other := Data{}
 	// if err := other.UnmarshalBinary(buf); err != nil {
 	// 	return err
@@ -769,9 +769,6 @@ func (ps *PermissionsSet) Add()    {}
 func (ps *PermissionsSet) Delete() {}
 
 func (ps *PermissionsSet) Contains() {}
-
-func (ps *PermissionsSet) Clone()  {}
-func (ps *PermissionsSet) Delete() {}
 
 type RoleInfo struct {
 	Users []UserInfo
@@ -834,7 +831,6 @@ func (rs *RoleInfos) Len()        {}
 func (rs *RoleInfos) Swap()       {}
 func (rs *RoleInfos) Less()       {}
 func (rs *RoleInfos) Authorized() {}
-func (rs *RoleInfos) Len()        {}
 
 type uint64arr []uint64
 

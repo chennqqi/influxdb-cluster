@@ -1,4 +1,4 @@
-package hh // import "github.com/influxdata/influxdb/services/hh"
+package hh // import "github.com/zhexuany/influxdb-cluster/hh"
 
 import (
 	"expvar"

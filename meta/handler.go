@@ -21,8 +21,8 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
-	"github.com/influxdata/influxdb/services/meta/internal"
 	"github.com/influxdata/influxdb/uuid"
+	"github.com/zhexuany/influxdb-cluster/meta/internal"
 )
 
 // handler represents an HTTP handler for the meta service.

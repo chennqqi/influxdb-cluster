@@ -1,4 +1,4 @@
-package meta // import "github.com/influxdata/influxdb/services/meta"
+package meta // import "github.com/zhexuany/influxdb-cluster/meta"
 
 import (
 	"crypto/tls"

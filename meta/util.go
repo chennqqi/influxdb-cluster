@@ -1,10 +1,10 @@
 package meta
 
 import (
-	"github.com/influxdata/influxdb/services/meta"
+// "github.com/influxdata/influxdb/services/meta"
 )
 
 func Restrict(data *Data) {
-	data.Clone()
-	data.ShardLocation()
+	// data.Clone()
+	// data.ShardLocation()
 }
