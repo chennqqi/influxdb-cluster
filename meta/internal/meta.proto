@@ -19,53 +19,7 @@ message NodeInfo {
 	required uint64 ID = 1;
 	required string Host = 2;
   optional string TCPHost = 3;
-  optional string PendingShardOwners = 4;
-}
-
-
-message DatabaseInfo {
-	required string Name = 1;
-	required string DefaultRetentionPolicy = 2;
-	repeated RetentionPolicyInfo RetentionPolicies = 3;
-	repeated ContinuousQueryInfo ContinuousQueries = 4;
-}
-
-message RetentionPolicyInfo {
-	required string Name = 1;
-	required int64 Duration = 2;
-	required int64 ShardGroupDuration = 3;
-	required uint32 ReplicaN = 4;
-	repeated ShardGroupInfo ShardGroups = 5;
-	repeated SubscriptionInfo Subscriptions = 6;
-}
-
-message ShardGroupInfo {
-	required uint64 ID = 1;
-	required int64 StartTime = 2;
-	required int64 EndTime = 3;
-	required int64 DeletedAt = 4;
-	repeated ShardInfo Shards = 5;
-}
-
-message ShardInfo {
-    required uint64 ID = 1;
-    repeated uint64 OwnerIDs = 2 [deprecated=true];
-    repeated ShardOwner Owners = 3;
-}
-
-message SubscriptionInfo{
-	required string Name = 1;
-	required string Mode = 2;
-	repeated string Destinations = 3;
-}
-
-message ShardOwner {
-    required uint64 NodeID = 2;
-}
-
-message ContinuousQueryInfo {
-	required string Name = 1;
-	required string Query = 2;
+  optional uint64 PendingShardOwners = 4;
 }
 
 message RoleInfo {
@@ -160,7 +114,7 @@ message CreateDatabaseCommand {
         optional CreateDatabaseCommand command = 101;
     }
 	required string Name = 1;
-	optional RetentionPolicyInfo RetentionPolicy = 2;
+	optional bytes RetentionPolicy = 2;
 }
 
 message DropDatabaseCommand {
@@ -175,7 +129,7 @@ message CreateRetentionPolicyCommand {
         optional CreateRetentionPolicyCommand command = 103;
     }
 	required string Database = 1;
-	required RetentionPolicyInfo RetentionPolicy = 2;
+	required bytes RetentionPolicy = 2;
 }
 
 message DropRetentionPolicyCommand {
@@ -332,7 +286,7 @@ message CreateSubscriptionCommand {
     }
     required string Name = 1;
     required string Database = 2;
-    required string RetentionPolicy = 3;
+    required bytes RetentionPolicy = 3;
     required string Mode = 4;
     repeated string Destinations = 5;
 
@@ -344,7 +298,7 @@ message DropSubscriptionCommand {
     }
     required string Name = 1;
     required string Database = 2;
-    required string RetentionPolicy = 3;
+    required bytes RetentionPolicy = 3;
 }
 
 message RemovePeerCommand {
@@ -507,13 +461,12 @@ message ImportDataCommand {
   }
 
   required bytes Data = 1;
-  //TODO need firgure out what is force
   required bool Force = 2;
   required string Database = 3;
-  required RetentionPolicyInfo RetentionPolicy = 4;
+  required bytes RetentionPolicy = 4;
   required uint64 ShardId = 5;
   required string NewDatabase = 6;
-  required RetentionPolicyInfo NewRetentionPolicy = 7;
+  required bytes NewRetentionPolicy = 7;
   required uint64 NewReplicationFactor = 8;
 }
 
@@ -523,7 +476,7 @@ message CreateBalancedShardGroupCommand {
   }
 
   required string Database = 1;
-  required RetentionPolicyInfo Policy = 2;
+  required bytes Policy = 2;
   required int64 Timestamp = 3;
 }
 
