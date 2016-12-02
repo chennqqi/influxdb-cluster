@@ -3,6 +3,7 @@ package run
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -28,6 +29,10 @@ type BuildInfo struct {
 	Commit  string
 	Branch  string
 	Tags    string
+}
+
+func (bi *BuildInfo) String() string {
+
 }
 
 // Server represents a container for the metadata and storage data and services.
@@ -70,6 +75,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// We need to ensure that a meta directory always exists even if
 	// we don't start the meta store.  node.json is always stored under
 	// the meta directory.
+
 	if err := os.MkdirAll(c.Meta.Dir, 0777); err != nil {
 		return nil, fmt.Errorf("mkdir all: %s", err)
 	}
@@ -80,17 +86,27 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	oldPath := filepath.Join(filepath.Dir(c.Meta.Dir), "node.json")
 	newPath := filepath.Join(c.Meta.Dir, "node.json")
 
+	//check oldpath is existed or not, if yes rename oldpath with newpath
 	if _, err := os.Stat(oldPath); err == nil {
 		if err := os.Rename(oldPath, newPath); err != nil {
 			return nil, err
 		}
 	}
 
+	node, err := influxdb.LoadNode(newPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+	// ioutil.ReadFile(filepath.Join())
+	if err != nil {
+	}
+
 	// In 0.10.0 bind-address got moved to the top level. Check
 	// The old location to keep things backwards compatible
 	bind := c.BindAddress
 	//strings.Contains()
-	// influxdb.Node.Save()
 
 	s := &Server{
 		buildInfo: *buildInfo,
@@ -101,7 +117,9 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		Logger: log.New(os.Stderr, "", log.LstdFlags),
 
-		MetaClient: meta.NewClient(c.Meta),
+		MetaClient: meta.NewClient(),
+
+		Service: meta.NewService(c.Meta),
 
 		reportingDisabled: c.ReportingDisabled,
 
@@ -111,10 +129,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		config:    c,
 		logOutput: os.Stderr,
-	}
-
-	if err := s.MetaClient.Open(); err != nil {
-		return nil, err
 	}
 
 	return s, nil
@@ -158,24 +172,33 @@ func (s *Server) Open() error {
 	s.Listener = ln
 
 	//initializes metaClietn
+	s.MetaClient = s.initializeMetaClient()
 	// Multiplex listener.
 	mux := tcp.NewMux()
 	go mux.Listen(ln)
+	if err := s.MetaClient.Open(); err != nil {
+		return err
+	}
 
-	// s.Service.Open()
-	// s.Service.Err()
+	s.HTTPAddr()
+	if err := s.Service.Open(); err != nil {
+		return err
+	}
+
+	s.Service.Err()
 	return nil
 }
 
 func (s *Server) initializeMetaClient() *meta.Client {
-	c := meta.NewClient()
 	//a is slice of string
-	c.SetMetaServers(a)
-	c.SetTLS()
-	c.SetAuthInfo()
-	c.Open()
-	c.WaitForDataChanged()
-	c.SetHTTPClient()
+	s.MetaClient.SetMetaServers(a)
+	s.MetaClient.SetTLS(v)
+	if s.MetaClient.HTTPClient != nil {
+		s.MetaClient.SetHTTPClient(h)
+	}
+	s.MetaClient.SetAuthInfo(au)
+	s.MetaClient.Open()
+	s.MetaClient.WaitForDataChanged()
 	return c
 }
 
@@ -219,20 +242,6 @@ func (s *Server) reportServer() {
 
 	numMeasurements := 0
 	numSeries := 0
-
-	// Only needed in the case of a data node
-	if s.TSDBStore != nil {
-		for _, di := range dis {
-			d := s.TSDBStore.DatabaseIndex(di.Name)
-			if d == nil {
-				// No data in this store for this database.
-				continue
-			}
-			m, s := d.MeasurementSeriesCounts()
-			numMeasurements += m
-			numSeries += s
-		}
-	}
 
 	clusterID := s.MetaClient.ClusterID()
 	cl := client.New("")

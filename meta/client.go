@@ -113,7 +113,7 @@ func (c *Client) Close() error {
 	return nil
 }
 func (c *Client) closed() error {
-
+	return nil
 }
 
 func (c *Client) doHTTP() {
@@ -162,16 +162,15 @@ func (c *Client) TLS() bool {
 // This function is not safe for concurrent use.
 func (c *Client) SetTLS(v bool) { c.tls = v }
 
-func (c *Client) AuthInfo() {
+func (c *Client) AuthInfo() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.authInfo
-
 }
 
 func (c *Client) SetAuthInfo(authInfo string) {
 	c.mu.Lock()
-	c.AuthInfo = authInfo
+	c.authInfo = authInfo
 	c.mu.Unlock()
 }
 
@@ -246,6 +245,18 @@ func (c *Client) acquireLease(name string) (*Lease, error) {
 
 		switch resp.StatusCode {
 		case http.StatusOK:
+			// Read lease JSON from response body.
+			b, e := ioutil.ReadAll(resp.Body)
+			if e != nil {
+				return nil, e
+			}
+			// Unmarshal JSON into a Lease.
+			l := &Lease{}
+			if e = json.Unmarshal(b, l); e != nil {
+				return nil, e
+			}
+
+			return l, err
 		case http.StatusConflict:
 			err = errors.New("another node owns the lease")
 		case http.StatusServiceUnavailable:
@@ -262,18 +273,7 @@ func (c *Client) acquireLease(name string) (*Lease, error) {
 			return nil, errors.New("unrecognized meta service error")
 		}
 	}
-	// Read lease JSON from response body.
-	b, e := ioutil.ReadAll(resp.Body)
-	if e != nil {
-		return nil, e
-	}
-	// Unmarshal JSON into a Lease.
-	l := &Lease{}
-	if e = json.Unmarshal(b, l); e != nil {
-		return nil, e
-	}
-
-	return l, err
+	return nil, errors.New("unrecognized meta service error")
 }
 
 func (c *Client) setData(data *Data) {
@@ -293,11 +293,11 @@ func (c *Client) ClusterID() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.data().ClusterID
+	return c.data().Data.ClusterID
 }
 
 // Node returns a node by id.
-func (c *Client) DataNode(id uint64) (*meta.NodeInfo, error) {
+func (c *Client) DataNode(id uint64) (*NodeInfo, error) {
 	for _, n := range c.data().DataNodes {
 		if n.ID == id {
 			return &n, nil
@@ -307,12 +307,12 @@ func (c *Client) DataNode(id uint64) (*meta.NodeInfo, error) {
 }
 
 // DataNodes returns the data nodes' info.
-func (c *Client) DataNodes() (meta.NodeInfos, error) {
+func (c *Client) DataNodes() (NodeInfos, error) {
 	return c.data().DataNodes, nil
 }
 
 // CreateDataNode will create a new data node in the metastore
-func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*meta.NodeInfo, error) {
+func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 	cmd := &internal.CreateDataNodeCommand{
 		HTTPAddr: proto.String(httpAddr),
 		TCPAddr:  proto.String(tcpAddr),
@@ -347,7 +347,7 @@ func (c *Client) RemoveShardOwner() {}
 func (c *Client) UpdateDataNode() {}
 
 // DataNodeByHTTPHost returns the data node with the give http bind address
-func (c *Client) DataNodeByHTTPHost(httpAddr string) (*meta.NodeInfo, error) {
+func (c *Client) DataNodeByHTTPHost(httpAddr string) (*NodeInfo, error) {
 	nodes, _ := c.DataNodes()
 	for _, n := range nodes {
 		if n.Host == httpAddr {
@@ -359,7 +359,7 @@ func (c *Client) DataNodeByHTTPHost(httpAddr string) (*meta.NodeInfo, error) {
 }
 
 // DataNodeByTCPHost returns the data node with the give http bind address
-func (c *Client) DataNodeByTCPHost(tcpAddr string) (*meta.NodeInfo, error) {
+func (c *Client) DataNodeByTCPHost(tcpAddr string) (*NodeInfo, error) {
 	nodes, _ := c.DataNodes()
 	for _, n := range nodes {
 		if n.TCPHost == tcpAddr {
@@ -380,12 +380,12 @@ func (c *Client) DeleteDataNode(id uint64) error {
 }
 
 // MetaNodes returns the meta nodes' info.
-func (c *Client) MetaNodes() (meta.NodeInfos, error) {
+func (c *Client) MetaNodes() (NodeInfos, error) {
 	return c.data().MetaNodes, nil
 }
 
 // MetaNodeByAddr returns the meta node's info.
-func (c *Client) MetaNodeByAddr(addr string) *meta.NodeInfo {
+func (c *Client) MetaNodeByAddr(addr string) *NodeInfo {
 	for _, n := range c.data().MetaNodes {
 		if n.Host == addr {
 			return &n
@@ -396,7 +396,7 @@ func (c *Client) MetaNodeByAddr(addr string) *meta.NodeInfo {
 
 // Database returns info for the requested database.
 func (c *Client) Database(name string) (*meta.DatabaseInfo, error) {
-	for _, d := range c.data().Databases {
+	for _, d := range c.data().Data.Databases {
 		if d.Name == name {
 			return &d, nil
 		}
@@ -409,9 +409,9 @@ func (c *Client) Database(name string) (*meta.DatabaseInfo, error) {
 
 // Databases returns a list of all database infos.
 func (c *Client) Databases() ([]meta.DatabaseInfo, error) {
-	dbs := c.data().Databases
+	dbs := c.data().Data.Databases
 	if dbs == nil {
-		return []DatabaseInfo{}, nil
+		return []meta.DatabaseInfo{}, nil
 	}
 	return dbs, nil
 }
@@ -455,12 +455,17 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, rpi *meta.Retent
 		}
 	}
 
-	cmd := &internal.CreateDatabaseCommand{
-		Name:            proto.String(name),
-		RetentionPolicy: rpi.marshal(),
+	rpiB, err := rpi.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
 
-	err := c.retryUntilExec(internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command, cmd)
+	cmd := &internal.CreateDatabaseCommand{
+		Name:            proto.String(name),
+		RetentionPolicy: rpiB,
+	}
+
+	err = c.retryUntilExec(internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -487,9 +492,13 @@ func (c *Client) CreateRetentionPolicy(database string, rpi *meta.RetentionPolic
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
 
+	rpiB, err := rpi.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
 	cmd := &internal.CreateRetentionPolicyCommand{
 		Database:        proto.String(database),
-		RetentionPolicy: rpi.marshal(),
+		RetentionPolicy: rpiB,
 	}
 
 	if err := c.retryUntilExec(internal.Command_CreateRetentionPolicyCommand, internal.E_CreateRetentionPolicyCommand_Command, cmd); err != nil {
@@ -685,7 +694,7 @@ func (c *Client) SetAdminPrivilege(username string, admin bool) error {
 }
 
 func (c *Client) UserPrivileges(username string) (map[string]influxql.Privilege, error) {
-	p, err := c.data().UserPrivileges(username)
+	p, err := c.data().Data.UserPrivileges(username)
 	if err != nil {
 		return nil, err
 	}
@@ -693,7 +702,7 @@ func (c *Client) UserPrivileges(username string) (map[string]influxql.Privilege,
 }
 
 func (c *Client) UserPrivilege(username, database string) (*influxql.Privilege, error) {
-	p, err := c.data().UserPrivilege(username, database)
+	p, err := c.data().Data.UserPrivilege(username, database)
 	if err != nil {
 		return nil, err
 	}
@@ -701,7 +710,7 @@ func (c *Client) UserPrivilege(username, database string) (*influxql.Privilege, 
 }
 
 func (c *Client) AdminUserExists() bool {
-	for _, u := range c.data().Users {
+	for _, u := range c.data().Data.Users {
 		if u.Admin {
 			return true
 		}
@@ -745,13 +754,13 @@ func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
 }
 
 func (c *Client) UserCount() int {
-	return len(c.data().Users)
+	return len(c.data().Data.Users)
 }
 
 // ShardIDs returns a list of all shard ids.
 func (c *Client) ShardIDs() []uint64 {
 	var a []uint64
-	for _, dbi := range c.data().Databases {
+	for _, dbi := range c.data().Data.Databases {
 		for _, rpi := range dbi.RetentionPolicies {
 			for _, sgi := range rpi.ShardGroups {
 				for _, si := range sgi.Shards {
@@ -768,13 +777,13 @@ func (c *Client) ShardIDs() []uint64 {
 // for the specified time range. Shard groups are sorted by start time.
 func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a meta.ShardGroupInfos, err error) {
 	// Find retention policy.
-	rpi, err := c.data().RetentionPolicy(database, policy)
+	rpi, err := c.data().Data.RetentionPolicy(database, policy)
 	if err != nil {
 		return nil, err
 	} else if rpi == nil {
 		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
-	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
+	groups := make([]meta.ShardGroupInfo, 0, len(rpi.ShardGroups))
 	for _, g := range rpi.ShardGroups {
 		if g.Deleted() || !g.Overlaps(min, max) {
 			continue
@@ -786,7 +795,7 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 
 // ShardsByTimeRange returns a slice of shards that may contain data in the time range.
 func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
-	m := make(map[*ShardInfo]struct{})
+	m := make(map[*meta.ShardInfo]struct{})
 	for _, src := range sources {
 		mm, ok := src.(*influxql.Measurement)
 		if !ok {
@@ -804,7 +813,7 @@ func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Tim
 		}
 	}
 
-	a = make([]ShardInfo, 0, len(m))
+	a = make([]meta.ShardInfo, 0, len(m))
 	for sh := range m {
 		a = append(a, *sh)
 	}
@@ -814,7 +823,7 @@ func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Tim
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
 func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
-	if sg, _ := c.data().data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
+	if sg, _ := c.data().Data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		return sg, nil
 	}
 
@@ -854,7 +863,7 @@ func (c *Client) DeleteShardGroup(database, policy string, id uint64) error {
 // for the corresponding time range arrives. Shard creation involves Raft consensus, and precreation
 // avoids taking the hit at write-time.
 func (c *Client) PrecreateShardGroups(from, to time.Time) error {
-	for _, di := range c.data().Databases {
+	for _, di := range c.data().Data.Databases {
 		for _, rp := range di.RetentionPolicies {
 			if len(rp.ShardGroups) == 0 {
 				// No data was ever written to this group, or all groups have been deleted.
@@ -882,7 +891,7 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 
 // ShardOwner returns the owning shard group info for a specific shard.
 func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo) {
-	for _, dbi := range c.data().Databases {
+	for _, dbi := range c.data().Data.Databases {
 		for _, rpi := range dbi.RetentionPolicies {
 			for _, g := range rpi.ShardGroups {
 				if g.Deleted() {
@@ -905,7 +914,7 @@ func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *meta.
 
 // JoinMetaServer will add the passed in tcpAddr to the raft peers and add a MetaNode to
 // the metastore
-func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) (*meta.NodeInfo, error) {
+func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) (*NodeInfo, error) {
 	node := &NodeInfo{
 		Host:    httpAddr,
 		TCPHost: tcpAddr,
@@ -968,7 +977,7 @@ func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) (*meta.NodeInfo, error
 	return node, nil
 }
 
-func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) (*meta.NodeInfo, error) {
+func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 	cmd := &internal.CreateMetaNodeCommand{
 		HTTPAddr: proto.String(httpAddr),
 		TCPAddr:  proto.String(tcpAddr),
@@ -1042,9 +1051,10 @@ func (c *Client) Data() *Data {
 }
 
 func (c *Client) SetData(data *Data) error {
+	dataB, _ := data.MarshalBinary()
 	return c.retryUntilExec(internal.Command_SetDataCommand, internal.E_SetDataCommand_Command,
 		&internal.SetDataCommand{
-			Data: data.MarshalBinary(),
+			Data: dataB,
 		},
 	)
 }
@@ -1075,7 +1085,7 @@ func (c *Client) SetLogger(l *log.Logger) {
 func (c *Client) index() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.cacheData.Index
+	return c.cacheData.Data.Index
 }
 
 // retryUntilExec will attempt the command on each of the metaservers until it either succeeds or
@@ -1192,7 +1202,7 @@ func (c *Client) exec(url string, typ internal.Command_Type, desc *proto.Extensi
 func (c *Client) waitForIndex(idx uint64) {
 	for {
 		c.mu.RLock()
-		if c.cacheData.Index >= idx {
+		if c.cacheData.Data.Index >= idx {
 			c.mu.RUnlock()
 			return
 		}
@@ -1213,10 +1223,10 @@ func (c *Client) pollForUpdates() {
 
 		// update the data and notify of the change
 		c.mu.Lock()
-		idx := c.cacheData.Index
+		idx := c.cacheData.Data.Index
 		c.cacheData = data
 		c.updateAuthCache()
-		if idx < data.Index {
+		if idx < data.Data.Index {
 			close(c.changed)
 			c.changed = make(chan struct{})
 		}

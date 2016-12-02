@@ -9,17 +9,17 @@ package internal;
 message ClusterData {
   required bytes Data = 1;
   required uint64 MaxNodeID = 2;
-  required NodeInfo DataNodes = 3;
-  required NodeInfo MetaNodes = 4;
-  required RoleInfo Roles = 5;
-  required UserInfo Users = 6;
+  repeated NodeInfo DataNodes = 3;
+  repeated NodeInfo MetaNodes = 4;
+  repeated RoleInfo Roles = 5;
+  repeated UserInfo Users = 6;
 }
 
 message NodeInfo {
 	required uint64 ID = 1;
 	required string Host = 2;
   optional string TCPHost = 3;
-  optional uint64 PendingShardOwners = 4;
+  repeated uint64 PendingShardOwners = 4;
 }
 
 message RoleInfo {
@@ -286,7 +286,7 @@ message CreateSubscriptionCommand {
     }
     required string Name = 1;
     required string Database = 2;
-    required bytes RetentionPolicy = 3;
+    required string RetentionPolicy = 3;
     required string Mode = 4;
     repeated string Destinations = 5;
 
@@ -298,7 +298,7 @@ message DropSubscriptionCommand {
     }
     required string Name = 1;
     required string Database = 2;
-    required bytes RetentionPolicy = 3;
+    required string RetentionPolicy = 3;
 }
 
 message RemovePeerCommand {
@@ -463,7 +463,7 @@ message ImportDataCommand {
   required bytes Data = 1;
   required bool Force = 2;
   required string Database = 3;
-  required bytes RetentionPolicy = 4;
+  required string RetentionPolicy = 4;
   required uint64 ShardId = 5;
   required string NewDatabase = 6;
   required bytes NewRetentionPolicy = 7;

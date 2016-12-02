@@ -70,9 +70,7 @@ func (cmd *PrintConfigCommand) parseConfig(path string) (*Config, error) {
 		return config, nil
 	}
 
-	fmt.Fprintf(os.Stderr, "Merging with configuration at: %s\n", path)
-
-	if err := config.FromTomlFile(path); err != nil {
+	if _, err := toml.DecodeFile(path, &config); err != nil {
 		return nil, err
 	}
 	return config, nil

@@ -2,8 +2,14 @@ package meta
 
 import (
 	"errors"
+	"fmt"
 	"net"
+	"os"
+	"os/user"
+	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/toml"
@@ -55,7 +61,7 @@ type Config struct {
 
 // NewConfig builds a new configuration with default values.
 func NewConfig() *Config {
-	return &Config{
+	meta := &MetaConfig{
 		Enabled:                true, // enabled by default
 		BindAddress:            DefaultRaftBindAddress,
 		HTTPBindAddress:        DefaultHTTPBindAddress,
@@ -69,12 +75,14 @@ func NewConfig() *Config {
 		RaftPromotionEnabled:   DefaultRaftPromotionEnabled,
 		LeaseDuration:          toml.Duration(DefaultLeaseDuration),
 		LoggingEnabled:         DefaultLoggingEnabled,
-		JoinPeers:              []string{},
+	}
+	return &Config{
+		Meta: meta,
 	}
 }
 
 func NewDemoConfig() *Config {
-	// c := NewConfig()
+	c := NewConfig()
 	// c.InitTableAttrs()
 
 	var homeDir string
@@ -86,7 +94,7 @@ func NewDemoConfig() *Config {
 	} else if os.Getenv("HOME") != "" {
 		homeDir = os.Getenv("HOME")
 	} else {
-		return nil, fmt.Errorf("failed to determine current user for storage")
+		return nil
 	}
 
 	// The following lines should add to data node instead of meta node TODO
@@ -94,9 +102,10 @@ func NewDemoConfig() *Config {
 	// c.HintedHandoff.Dir = filepath.Join(homeDir, ".influxdb/hh")
 	// c.Data.WALDir = filepath.Join(homeDir, ".influxdb/wal")
 	// c.HintedHandoff.Enabled = true
-	c.Admin.Enabled = true
+	// c.Meta.
+	// c.Admin.Enabled = true
 
-	return c, nil
+	return c
 
 }
 
@@ -262,7 +271,7 @@ type MetaConfig struct {
 }
 
 //TODO add more criterias
-func (m *MetaConfig) Valiadte() error {
+func (m *MetaConfig) Validate() error {
 	if m.Dir == "" {
 		return errors.New("Meta.Dir must be specified")
 	}

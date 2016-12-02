@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
+	// "strings"
 	"sync"
 	"time"
 
@@ -28,7 +28,7 @@ const (
 // consensus operations.
 type raftState struct {
 	wg        sync.WaitGroup
-	config    *Config
+	config    *MetaConfig
 	closing   chan struct{}
 	raft      *raft.Raft
 	transport *raft.NetworkTransport
@@ -44,107 +44,107 @@ type raftState struct {
 //TODO finished this func for now this func is just copied from config.applyEnvOverrides
 func loadConfigEnvOverrides(prefix string, spec reflect.Value) error {
 	// If we have a pointer, dereference it
-	s := spec
-	if spec.Kind() == reflect.Ptr {
-		s = spec.Elem()
-	}
+	// s := spec
+	// if spec.Kind() == reflect.Ptr {
+	// 	s = spec.Elem()
+	// }
 
-	// Make sure we have struct
-	if s.Kind() != reflect.Struct {
-		return nil
-	}
+	// // Make sure we have struct
+	// if s.Kind() != reflect.Struct {
+	// 	return nil
+	// }
 
-	typeOfSpec := s.Type()
-	for i := 0; i < s.NumField(); i++ {
-		f := s.Field(i)
-		// Get the toml tag to determine what env var name to use
-		configName := typeOfSpec.Field(i).Tag.Get("toml")
-		// Replace hyphens with underscores to avoid issues with shells
-		configName = strings.Replace(configName, "-", "_", -1)
-		fieldKey := typeOfSpec.Field(i).Name
+	// typeOfSpec := s.Type()
+	// for i := 0; i < s.NumField(); i++ {
+	// 	f := s.Field(i)
+	// 	// Get the toml tag to determine what env var name to use
+	// 	configName := typeOfSpec.Field(i).Tag.Get("toml")
+	// 	// Replace hyphens with underscores to avoid issues with shells
+	// 	configName = strings.Replace(configName, "-", "_", -1)
+	// 	fieldKey := typeOfSpec.Field(i).Name
 
-		// Skip any fields that we cannot set
-		if f.CanSet() || f.Kind() == reflect.Slice {
+	// 	// Skip any fields that we cannot set
+	// 	if f.CanSet() || f.Kind() == reflect.Slice {
 
-			// Use the upper-case prefix and toml name for the env var
-			key := strings.ToUpper(configName)
-			if prefix != "" {
-				key = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
-			}
-			value := os.Getenv(key)
+	// 		// Use the upper-case prefix and toml name for the env var
+	// 		key := strings.ToUpper(configName)
+	// 		if prefix != "" {
+	// 			key = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
+	// 		}
+	// 		value := os.Getenv(key)
 
-			// If the type is s slice, apply to each using the index as a suffix
-			// e.g. GRAPHITE_0
-			if f.Kind() == reflect.Slice || f.Kind() == reflect.Array {
-				for i := 0; i < f.Len(); i++ {
-					if err := c.applyEnvOverrides(fmt.Sprintf("%s_%d", key, i), f.Index(i)); err != nil {
-						return err
-					}
-				}
-				continue
-			}
+	// 		// If the type is s slice, apply to each using the index as a suffix
+	// 		// e.g. GRAPHITE_0
+	// 		if f.Kind() == reflect.Slice || f.Kind() == reflect.Array {
+	// 			for i := 0; i < f.Len(); i++ {
+	// 				if err := c.applyEnvOverrides(fmt.Sprintf("%s_%d", key, i), f.Index(i)); err != nil {
+	// 					return err
+	// 				}
+	// 			}
+	// 			continue
+	// 		}
 
-			// If it's a sub-config, recursively apply
-			if f.Kind() == reflect.Struct || f.Kind() == reflect.Ptr {
-				if err := c.applyEnvOverrides(key, f); err != nil {
-					return err
-				}
-				continue
-			}
+	// 		// If it's a sub-config, recursively apply
+	// 		if f.Kind() == reflect.Struct || f.Kind() == reflect.Ptr {
+	// 			if err := c.applyEnvOverrides(key, f); err != nil {
+	// 				return err
+	// 			}
+	// 			continue
+	// 		}
 
-			// Skip any fields we don't have a value to set
-			if value == "" {
-				continue
-			}
+	// 		// Skip any fields we don't have a value to set
+	// 		if value == "" {
+	// 			continue
+	// 		}
 
-			switch f.Kind() {
-			case reflect.String:
-				f.SetString(value)
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	// 		switch f.Kind() {
+	// 		case reflect.String:
+	// 			f.SetString(value)
+	// 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 
-				var intValue int64
+	// 			var intValue int64
 
-				// Handle toml.Duration
-				if f.Type().Name() == "Duration" {
-					dur, err := time.ParseDuration(value)
-					if err != nil {
-						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
-					}
-					intValue = dur.Nanoseconds()
-				} else {
-					var err error
-					intValue, err = strconv.ParseInt(value, 0, f.Type().Bits())
-					if err != nil {
-						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
-					}
-				}
+	// 			// Handle toml.Duration
+	// 			if f.Type().Name() == "Duration" {
+	// 				dur, err := time.ParseDuration(value)
+	// 				if err != nil {
+	// 					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
+	// 				}
+	// 				intValue = dur.Nanoseconds()
+	// 			} else {
+	// 				var err error
+	// 				intValue, err = strconv.ParseInt(value, 0, f.Type().Bits())
+	// 				if err != nil {
+	// 					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
+	// 				}
+	// 			}
 
-				f.SetInt(intValue)
-			case reflect.Bool:
-				boolValue, err := strconv.ParseBool(value)
-				if err != nil {
-					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
+	// 			f.SetInt(intValue)
+	// 		case reflect.Bool:
+	// 			boolValue, err := strconv.ParseBool(value)
+	// 			if err != nil {
+	// 				return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
 
-				}
-				f.SetBool(boolValue)
-			case reflect.Float32, reflect.Float64:
-				floatValue, err := strconv.ParseFloat(value, f.Type().Bits())
-				if err != nil {
-					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
+	// 			}
+	// 			f.SetBool(boolValue)
+	// 		case reflect.Float32, reflect.Float64:
+	// 			floatValue, err := strconv.ParseFloat(value, f.Type().Bits())
+	// 			if err != nil {
+	// 				return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
 
-				}
-				f.SetFloat(floatValue)
-			default:
-				if err := c.applyEnvOverrides(key, f); err != nil {
-					return err
-				}
-			}
-		}
-	}
+	// 			}
+	// 			f.SetFloat(floatValue)
+	// 		default:
+	// 			if err := c.applyEnvOverrides(key, f); err != nil {
+	// 				return err
+	// 			}
+	// 		}
+	// 	}
+	// }
 	return nil
 }
 
-func newRaftState(c *Config, addr string) *raftState {
+func newRaftState(c *MetaConfig, addr string) *raftState {
 	return &raftState{
 		config: c,
 		addr:   addr,
@@ -182,7 +182,8 @@ func (r *raftState) open(s *store, ln net.Listener) error {
 	r.peerStore = raft.NewJSONPeers(r.path, r.transport)
 
 	//check wheather node itself is in peerStore or not
-	if ok := raft.PeerContained(r.peerStore, r.addr); !ok {
+	peers, _ := r.peers()
+	if ok := raft.PeerContained(peers, r.addr); !ok {
 		// remove node itself from peer store
 		r.removePeer(r.addr)
 	}

@@ -9,8 +9,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/http/pprof"
-	"net/url"
+	// "net/http/pprof"
+	// "net/url"
 	"os"
 	"runtime"
 	"strconv"
@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	jwt "github.com/dgrijalva/jwt-go"
+	// jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
 	"github.com/influxdata/influxdb/uuid"
@@ -99,8 +99,6 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.WrapHandler("ping", h.servePing).ServeHTTP(w, r)
 		case "/lease":
 			h.WrapHandler("lease", h.serveLease).ServeHTTP(w, r)
-		case "/peers":
-			h.WrapHandler("peers", h.servePeers).ServeHTTP(w, r)
 		default:
 			h.WrapHandler("snapshot", h.serveSnapshot).ServeHTTP(w, r)
 		}
@@ -112,11 +110,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) do() {
-	u := url.URL.String()
-	req := http.NewRequest("http", u)
+	// u := url.URL.String()
+	// req := http.NewRequest("http", u)
 	// http.Header.Set(k, v) fmt.Sprintf
-	h.mu.RLock()
-	h.mu.RUnlock()
+	// h.mu.RLock()
+	// h.mu.RUnlock()
 	//http.Do
 	//time now
 	// jwt.NewWithClaims()
@@ -132,7 +130,7 @@ func (h *handler) post() {
 }
 func (h *handler) postform() {
 	//net.url.Va
-	url.Values.Encode()
+	// url.Values.Encode()
 	h.do()
 }
 
@@ -173,50 +171,50 @@ func (h *handler) machineEntitled() {
 }
 
 func (h *handler) serveJoin(w http.ResponseWriter, r *http.Request) {
-	if h.isClosed() {
-		h.httpError(fmt.Errorf("server closed"), w, http.StatusServiceUnavailable)
-		return
-	}
-	n := &NodeInfo{}
-	if err := json.Unmarshal(body, n); err != nil {
-		h.httpError(err, w, http.StatusInternalServerError)
-		return
-	}
-
-	// if resp, err := http.PostForm(h.config.Meta.RemoteHostname, data); err != nil {
-
+	// if h.isClosed() {
+	// 	h.httpError(fmt.Errorf("server closed"), w, http.StatusServiceUnavailable)
+	// 	return
+	// }
+	// n := &NodeInfo{}
+	// if err := json.Unmarshal(body, n); err != nil {
+	// 	h.httpError(err, w, http.StatusInternalServerError)
+	// 	return
 	// }
 
-	node, err := h.store.join(n)
-	if err == raft.ErrNotLeader {
-		l := h.store.leaderHTTP()
-		if l == "" {
-			// No cluster leader. Client will have to try again later.
-			h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
-			return
-		}
-		scheme := "http://"
-		if h.config.HTTPSEnabled {
-			scheme = "https://"
-		}
+	// // if resp, err := http.PostForm(h.config.Meta.RemoteHostname, data); err != nil {
 
-		l = scheme + l + "/join"
-		http.Redirect(w, r, l, http.StatusTemporaryRedirect)
-		return
-	}
+	// // }
 
-	if err != nil {
-		h.httpError(err, w, http.StatusInternalServerError)
-		return
-	}
+	// node, err := h.store.join(n)
+	// if err == raft.ErrNotLeader {
+	// 	l := h.store.leaderHTTP()
+	// 	if l == "" {
+	// 		// No cluster leader. Client will have to try again later.
+	// 		h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
+	// 		return
+	// 	}
+	// 	scheme := "http://"
+	// 	if h.config.HTTPSEnabled {
+	// 		scheme = "https://"
+	// 	}
 
-	// Return the node with newly assigned ID as json
-	w.Header().Add("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(node); err != nil {
-		h.jsonError(err, w, http.StatusInternalServerError)
-	}
+	// 	l = scheme + l + "/join"
+	// 	http.Redirect(w, r, l, http.StatusTemporaryRedirect)
+	// 	return
+	// }
 
-	return
+	// if err != nil {
+	// 	h.httpError(err, w, http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// // Return the node with newly assigned ID as json
+	// w.Header().Add("Content-Type", "application/json")
+	// if err := json.NewEncoder(w).Encode(node); err != nil {
+	// 	h.jsonError(err, w, http.StatusInternalServerError)
+	// }
+
+	// return
 
 	// http.PostForm(url, data)
 	// h.get()
@@ -565,7 +563,7 @@ func gzipFilter(inner http.Handler) http.Handler {
 // and adds the X-INFLUXBD-VERSION header to outgoing responses.
 func versionHeader(inner http.Handler, h *handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("X-InfluxDB-Version", h.s.Version)
+		w.Header().Add("X-InfluxDB-Version", h.s.Version())
 		inner.ServeHTTP(w, r)
 	})
 }
