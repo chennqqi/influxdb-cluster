@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/zhexuany/influxdb-cluster/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -56,7 +57,9 @@ type store struct {
 func newStore(c *MetaConfig, httpAddr, raftAddr string) *store {
 	s := store{
 		data: &Data{
-			Index: 1,
+			Data: &meta.Data{
+				Index: 1,
+			},
 		},
 		closing:     make(chan struct{}),
 		dataChanged: make(chan struct{}),
@@ -177,7 +180,7 @@ func (s *store) reset(raftln net.Listener) error {
 	if err := s.close(); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(filepath.Join(s.path), "/*"); err != nil {
+	if err := os.RemoveAll(filepath.Join(s.path, "/*")); err != nil {
 		return err
 	}
 
@@ -221,7 +224,7 @@ func (s *store) afterIndex(index uint64) <-chan struct{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if index < s.data.Index {
+	if index < s.data.Data.Index {
 		// Client needs update so return a closed channel.
 		ch := make(chan struct{})
 		close(ch)
@@ -231,8 +234,8 @@ func (s *store) afterIndex(index uint64) <-chan struct{} {
 	return s.dataChanged
 }
 
-func (s *store) applied(timeout time.Duration) bool {
-	return s.raftState.raft.Barrier(timeout)
+func (s *store) applied(timeout time.Duration) error {
+	return s.raftState.raft.Barrier(timeout).Error()
 }
 
 // WaitForLeader sleeps until a leader is found or a timeout occurs.
@@ -316,7 +319,7 @@ func (s *store) otherMetaServersHTTP() []string {
 	return a
 }
 
-func (s *store) dataNode() meta.NodeInfos {
+func (s *store) dataNode() NodeInfos {
 	return s.data.DataNodes
 }
 
@@ -334,7 +337,7 @@ func (s *store) dataNodeByTCPHost() []string {
 func (s *store) index() uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.data.Index
+	return s.data.Data.Index
 }
 
 // apply applies a command to raft.
@@ -410,7 +413,7 @@ func (s *store) deleteMetaNode(id uint64) error {
 	t := internal.Command_DeleteMetaNodeCommand
 	cmd := &internal.Command{Type: &t}
 	if err := proto.SetExtension(cmd, internal.E_DeleteMetaNodeCommand_Command, val); err != nil {
-		painc(err)
+		// painc(err)
 	}
 
 	b, err := proto.Marshal(cmd)
@@ -442,11 +445,11 @@ func (s *store) createDataNode(addr, raftAddr string) error {
 
 func (s *store) deleteDataNode(id uint64) error {
 	val := &internal.DeleteDataNodeCommand{
-		ID: id,
+		ID: proto.Uint64(id),
 	}
 	t := internal.Command_DeleteDataNodeCommand
 	cmd := &internal.Command{Type: &t}
-	if err := proto.SetExtension(cmd, internal.E_DelteDataNodeCommand_Command, val); err != nil {
+	if err := proto.SetExtension(cmd, internal.E_DeleteDataNodeCommand_Command, val); err != nil {
 		panic(err)
 	}
 
@@ -458,64 +461,64 @@ func (s *store) deleteDataNode(id uint64) error {
 	return s.apply(b)
 }
 
-func (s *store) updateDataNode() error {
-}
-func (s *store) nodeByHTTPAddr() error {
-}
-func (s *store) copyShard() error {
-}
-func (s *store) removeShard() error {
-}
-func (s *store) killCopyShard() error {
-}
+// func (s *store) updateDataNode() error {
+// }
+// func (s *store) nodeByHTTPAddr() error {
+// }
+// func (s *store) copyShard() error {
+// }
+// func (s *store) removeShard() error {
+// }
+// func (s *store) killCopyShard() error {
+// }
 
-// remoteNodeError.Error() {
+// // remoteNodeError.Error() {
 
-func (s *store) executeCopyShardStatus() error {
-}
-func (s *store) copyShardStatus() error {
-}
-func (s *store) user() error {
-}
-func (s *store) users() error {
-}
-func (s *store) adminExists() error {
-}
-func (s *store) createUser() error {
-}
-func (s *store) deleteUser() error {
-}
-func (s *store) setUserPassword() error {
-}
-func (s *store) addUserPermissions() error {
-}
-func (s *store) removeUserPermissions() error {
-}
-func (s *store) role() error {
-}
-func (s *store) roles() error {
-}
-func (s *store) createRole() error {
-}
-func (s *store) deleteRole() {
-}
-func (s *store) addRoleUsers() error {
-}
-func (s *store) removeRoleUsers() error {
-}
-func (s *store) addRolePermissions() erorr {
-}
-func (s *store) removeRolePermissions() error {
-}
-func (s *store) changeRoleName() error {
-}
-func (s *store) truncateShardGroups() error {
-}
-func (s *store) authenticate() error {
-}
-func (s *store) authorized() error {
-}
-func (s *store) authorizedScoped() error {
-}
-func (s *store) updateRetentionPolicy() error {
-}
+// func (s *store) executeCopyShardStatus() error {
+// }
+// func (s *store) copyShardStatus() error {
+// }
+// func (s *store) user() error {
+// }
+// func (s *store) users() error {
+// }
+// func (s *store) adminExists() error {
+// }
+// func (s *store) createUser() error {
+// }
+// func (s *store) deleteUser() error {
+// }
+// func (s *store) setUserPassword() error {
+// }
+// func (s *store) addUserPermissions() error {
+// }
+// func (s *store) removeUserPermissions() error {
+// }
+// func (s *store) role() error {
+// }
+// func (s *store) roles() error {
+// }
+// func (s *store) createRole() error {
+// }
+// func (s *store) deleteRole() {
+// }
+// func (s *store) addRoleUsers() error {
+// }
+// func (s *store) removeRoleUsers() error {
+// }
+// func (s *store) addRolePermissions() error {
+// }
+// func (s *store) removeRolePermissions() error {
+// }
+// func (s *store) changeRoleName() error {
+// }
+// func (s *store) truncateShardGroups() error {
+// }
+// func (s *store) authenticate() error {
+// }
+// func (s *store) authorized() error {
+// }
+// func (s *store) authorizedScoped() error {
+// }
+// func (s *store) updateRetentionPolicy() error {
+// }

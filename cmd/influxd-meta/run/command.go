@@ -82,15 +82,15 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Parse config
-	config, err := cmd.ParseConfig(options.GetConfigPath())
+	config, err := ParseConfig(options.GetConfigPath())
 	if err != nil {
 		return fmt.Errorf("parse config: %s", err)
 	}
 
 	// Apply any environment variables on top of the parsed config
-	if err := config.ApplyEnvOverrides(); err != nil {
-		return fmt.Errorf("apply env config: %v", err)
-	}
+	// if err := config.ApplyEnvOverrides(); err != nil {
+	// return fmt.Errorf("apply env config: %v", err)
+	// }
 
 	// Validate the configuration.
 	if err := config.Validate(); err != nil {
@@ -119,9 +119,6 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("open server: %s", err)
 	}
 	cmd.Server = s
-
-	// Begin monitoring the server's error channel.
-	go cmd.monitorServerErrors()
 
 	return nil
 }
@@ -185,25 +182,6 @@ func (cmd *Command) writePIDFile(path string) error {
 	}
 
 	return nil
-}
-
-// ParseConfig parses the config at path.
-// Returns a demo configuration if path is blank.
-func (cmd *Command) ParseConfig(path string) (*Config, error) {
-	// Use demo configuration if no config path is specified.
-	if path == "" {
-		log.Println("no configuration provided, using default settings")
-		return NewDemoConfig()
-	}
-
-	log.Printf("Using configuration at: %s\n", path)
-
-	config := NewConfig()
-	if err := config.FromTomlFile(path); err != nil {
-		return nil, err
-	}
-
-	return config, nil
 }
 
 var usage = `Runs the InfluxDB server.

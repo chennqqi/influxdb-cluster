@@ -1,4 +1,4 @@
-package meta // import "github.com/influxdata/influxdb/services/meta"
+package meta // import "github.com/zhexuany/influxdb-cluster/meta"
 
 import (
 	"crypto/tls"
@@ -21,7 +21,7 @@ const (
 type Service struct {
 	RaftListener net.Listener
 
-	Version string
+	version string
 
 	config   *MetaConfig
 	handler  *handler
@@ -57,11 +57,11 @@ func NewService(c *MetaConfig) *Service {
 }
 
 func (s *Service) SetVersion(version string) {
-	s.Version = version
+	s.version = version
 }
 
 func (s *Service) Version() string {
-	return s.Version
+	return s.version
 }
 
 // Open starts the service

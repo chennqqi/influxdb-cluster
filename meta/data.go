@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
-	internal "github.com/zhexuany/influxdb-cluster/meta/internal"
+	"github.com/zhexuany/influxdb-cluster/meta/internal"
 )
 
 //go:generate protoc --gogo_out=. internal/meta.proto
@@ -30,39 +30,47 @@ const (
 
 // Data represents the top level collection of all metadata.
 type Data struct {
-	*meta.Data
-	MetaNodes meta.NodeInfos
-	DataNodes meta.NodeInfos
+	Data      *meta.Data
+	MetaNodes NodeInfos
+	DataNodes NodeInfos
 	Users     []UserInfo
 	Roles     RoleInfos
+	MaxNodeID uint64
 }
 
 // Clone returns a copy of data with a new version.
 func (data *Data) Clone() *Data {
 	other := *data
 
-	// Copy nodes.
-	if data.DataNodes != nil {
-		other.DataNodes = make([]meta.NodeInfo, len(data.DataNodes))
-		for i := range data.DataNodes {
-			other.DataNodes[i] = data.DataNodes[i].clone()
-		}
-	}
+	//copy data
+	other.Data = data.Data.Clone()
 
+	//copy meta nodes
 	if data.MetaNodes != nil {
-		other.MetaNodes = make([]meta.NodeInfo, len(data.MetaNodes))
+		other.MetaNodes = make([]NodeInfo, len(data.MetaNodes))
 		for i := range data.MetaNodes {
 			other.MetaNodes[i] = data.MetaNodes[i].clone()
 		}
 	}
 
-	other.Roles = data.CloneRoles()
+	// Copy data nodes.
+	if data.DataNodes != nil {
+		other.DataNodes = make([]NodeInfo, len(data.DataNodes))
+		for i := range data.DataNodes {
+			other.DataNodes[i] = data.DataNodes[i].clone()
+		}
+	}
+
+	//copy roles information
+	// other.Roles = data.CloneRoles()
+
+	//copy users information
 	other.Users = data.CloneUsers()
 
 	return &other
 }
 
-func (data *Data) MetaNode(id uint64) *meta.NodeInfo {
+func (data *Data) MetaNode(id uint64) *NodeInfo {
 	for i := range data.MetaNodes {
 		if data.MetaNodes[i].ID == id {
 			return &data.MetaNodes[i]
@@ -71,7 +79,7 @@ func (data *Data) MetaNode(id uint64) *meta.NodeInfo {
 	return nil
 }
 
-func (data *Data) CreateMetaNode(host, tcpHost string) error {
+func (data *Data) CreateMetaNode(host, tcpHost string, pendingShardOwners uint64arr) error {
 	// Ensure a node with the same host doesn't already exist.
 	for _, n := range data.DataNodes {
 		if n.TCPHost == tcpHost {
@@ -97,9 +105,10 @@ func (data *Data) CreateMetaNode(host, tcpHost string) error {
 
 	// Append new node.
 	data.MetaNodes = append(data.MetaNodes, NodeInfo{
-		ID:      existingID,
-		Host:    host,
-		TCPHost: tcpHost,
+		ID:                 existingID,
+		Host:               host,
+		TCPHost:            tcpHost,
+		PendingShardOwners: pendingShardOwners,
 	})
 	sort.Sort(NodeInfos(data.MetaNodes))
 
@@ -109,7 +118,7 @@ func (data *Data) CreateMetaNode(host, tcpHost string) error {
 
 // SetMetaNode adds a meta node with a pre-specified nodeID.
 // this should only be used when the cluster is upgrading from 0.9 to 0.10
-func (data *Data) SetMetaNode(nodeID uint64, host, tcpHost string) error {
+func (data *Data) SetMetaNode(nodeID uint64, host, tcpHost string, pendingShardOwners uint64arr) error {
 	// Ensure a node with the same host doesn't already exist.
 	for _, n := range data.MetaNodes {
 		if n.Host == host {
@@ -120,9 +129,10 @@ func (data *Data) SetMetaNode(nodeID uint64, host, tcpHost string) error {
 	//call CreateMetaNode
 	// Append new node.
 	data.MetaNodes = append(data.MetaNodes, NodeInfo{
-		ID:      nodeID,
-		Host:    host,
-		TCPHost: tcpHost,
+		ID:                 nodeID,
+		Host:               host,
+		TCPHost:            tcpHost,
+		PendingShardOwners: pendingShardOwners,
 	})
 
 	return nil
@@ -145,12 +155,12 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 	data.MetaNodes = nodes
 
 	// Remove node id from all shard infos
-	for di, d := range data.Databases {
+	for di, d := range data.Data.Databases {
 		for ri, rp := range d.RetentionPolicies {
 			for sgi, sg := range rp.ShardGroups {
 				var (
 					nodeOwnerFreqs = make(map[int]int)
-					orphanedShards []ShardInfo
+					orphanedShards []meta.ShardInfo
 				)
 				// Look through all shards in the shard group and
 				// determine (1) if a shard no longer has any owner
@@ -172,7 +182,7 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 						// Data node owns shard, so relinquish ownerhip
 						// and set new owner on the shard.
 						s.Owners = append(s.Owners[:nodeIdx], s.Owners[nodeIdx+1:]...)
-						data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = s.Owners
+						data.Data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = s.Owners
 					}
 
 					// Shard no longer owned. Will need reassigning
@@ -185,7 +195,7 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 				// Mark the shard group as deleted if it has no shards,
 				// or all of its shards are orphaned.
 				if len(sg.Shards) == 0 || len(orphanedShards) == len(sg.Shards) {
-					data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].DeletedAt = time.Now().UTC()
+					data.Data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].DeletedAt = time.Now().UTC()
 					continue
 				}
 
@@ -193,21 +203,20 @@ func (data *Data) DeleteMetaNode(id uint64) error {
 				// dropping from the list of potential new owner.
 				delete(nodeOwnerFreqs, int(id))
 
-				for _, orphan := range orphanedShards {
-					newOwnerID, err := newShardOwner(orphan, nodeOwnerFreqs)
-					if err != nil {
-						return err
-					}
+				// for _, orphan := range orphanedShards {
+				// newOwnerID, err := newShardOwner(orphan, nodeOwnerFreqs)
+				// if err != nil {
+				// 	return err
+				// }
 
-					for si, s := range sg.Shards {
-						if s.ID == orphan.ID {
-							sg.Shards[si].Owners = append(sg.Shards[si].Owners, ShardOwner{NodeID: newOwnerID})
-							data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards = sg.Shards
-							break
-						}
-					}
-
-				}
+				// for si, s := range sg.Shards {
+				// 	if s.ID == orphan.ID {
+				// 		sg.Shards[si].Owners = append(sg.Shards[si].Owners, ShardOwner{NodeID: newOwnerID})
+				// 		data.Data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards = sg.Shards
+				// 		break
+				// 	}
+				// }
+				// }
 			}
 		}
 	}
@@ -293,20 +302,19 @@ func (data *Data) DeleteDataNode(id uint64) error {
 
 	return nil
 }
-func (data *Data) MarshalBinary() {
+func (data *Data) MarshalBinary() ([]byte, error) {
 	return proto.Marshal(data.marshal())
 }
 
 // marshal serializes to a protobuf representation.
-func (data *Data) marshal() *internal.Data {
-	pb := &internal.Data{
-		Term:      proto.Uint64(data.Term),
-		Index:     proto.Uint64(data.Index),
-		ClusterID: proto.Uint64(data.ClusterID),
+func (data *Data) marshal() *internal.ClusterData {
+	pb := &internal.ClusterData{}
 
-		MaxNodeID:       proto.Uint64(data.MaxNodeID),
-		MaxShardGroupID: proto.Uint64(data.MaxShardGroupID),
-		MaxShardID:      proto.Uint64(data.MaxShardID),
+	pb.Data, _ = data.Data.MarshalBinary()
+
+	pb.MetaNodes = make([]*internal.NodeInfo, len(data.MetaNodes))
+	for i := range data.MetaNodes {
+		pb.MetaNodes[i] = data.MetaNodes[i].marshal()
 	}
 
 	pb.DataNodes = make([]*internal.NodeInfo, len(data.DataNodes))
@@ -314,20 +322,10 @@ func (data *Data) marshal() *internal.Data {
 		pb.DataNodes[i] = data.DataNodes[i].marshal()
 	}
 
-	pb.MetaNodes = make([]*internal.NodeInfo, len(data.MetaNodes))
-	for i := range data.MetaNodes {
-		pb.MetaNodes[i] = data.MetaNodes[i].marshal()
-	}
-
-	pb.Databases = make([]*internal.DatabaseInfo, len(data.Databases))
-	for i := range data.Databases {
-		pb.Databases[i] = data.Databases[i].marshal()
-	}
-
 	pb.Users = make([]*internal.UserInfo, len(data.Users))
-	for i := range data.Users {
-		pb.Users[i] = data.Users[i].marshal()
-	}
+	// for i := range data.Users {
+	// pb.Users[i] = data.Users[i].marshal()
+	// }
 
 	//RoleInfo marshal TODO
 	return pb
@@ -335,7 +333,7 @@ func (data *Data) marshal() *internal.Data {
 
 // UnmarshalBinary decodes the object from a binary format.
 func (data *Data) UnmarshalBinary(buf []byte) error {
-	var pb internal.Data
+	var pb internal.ClusterData
 	if err := proto.Unmarshal(buf, &pb); err != nil {
 		return err
 	}
@@ -344,25 +342,25 @@ func (data *Data) UnmarshalBinary(buf []byte) error {
 }
 
 // unmarshal deserializes from a protobuf representation.
-func (data *Data) unmarshal(pb *internal.Data) {
-	//Call UmarshalBianry
-	data.Term = pb.GetTerm()
-	data.Index = pb.GetIndex()
-	data.ClusterID = pb.GetClusterID()
+func (data *Data) unmarshal(pb *internal.ClusterData) {
+	data.Data = &meta.Data{}
+	data.Data.UnmarshalBinary(pb.GetData())
 
-	data.MaxShardGroupID = pb.GetMaxShardGroupID()
-	data.MaxShardID = pb.GetMaxShardID()
-
-	data.Databases = make([]DatabaseInfo, len(pb.GetDatabases()))
-	for i, x := range pb.GetDatabases() {
-		data.Databases[i].unmarshal(x)
+	data.MetaNodes = make([]NodeInfo, len(pb.GetMetaNodes()))
+	for i, meta := range pb.GetMetaNodes() {
+		data.MetaNodes[i].unmarshal(meta)
 	}
 
-	//RoleInfo TODO unmarshal
-	data.Users = make([]UserInfo, len(pb.GetUsers()))
-	for i, x := range pb.GetUsers() {
-		data.Users[i].unmarshal(x)
-	}
+	// data.DataNodes = make([]NodeInfo, len(pb.GetDataNodes()))
+	// for i, data := range pb.GetDataNodes() {
+	// 	data.DataNodes[i].unmarshal(data)
+	// }
+
+	// //RoleInfo TODO unmarshal
+	// data.Users = make([]UserInfo, len(pb.GetUsers()))
+	// for i, x := range pb.GetUsers() {
+	// 	data.Users[i].unmarshal(x)
+	// }
 }
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
@@ -373,7 +371,7 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 	}
 
 	// Find retention policy.
-	rpi, err := data.RetentionPolicy(database, policy)
+	rpi, err := data.Data.RetentionPolicy(database, policy)
 	if err != nil {
 		return err
 	} else if rpi == nil {
@@ -400,16 +398,16 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 
 	//TODO finished generatedShards
 	// Create the shard group.
-	data.MaxShardGroupID++
+	data.Data.MaxShardGroupID++
 	sgi := meta.ShardGroupInfo{}
-	sgi.ID = data.MaxShardGroupID
+	sgi.ID = data.Data.MaxShardGroupID
 	sgi.StartTime = timestamp.Truncate(rpi.ShardGroupDuration).UTC()
 	sgi.EndTime = sgi.StartTime.Add(rpi.ShardGroupDuration).UTC()
 
 	sgi.Shards = data.generatedShards(shardN)
 	// Assign data nodes to shards via round robin.
 	// Start from a repeatably "random" place in the node list.
-	nodeIndex := int(data.Index % uint64(len(data.DataNodes)))
+	nodeIndex := int(data.Data.Index % uint64(len(data.DataNodes)))
 	for i := range sgi.Shards {
 		si := &sgi.Shards[i]
 		for j := 0; j < replicaN; j++ {
@@ -432,38 +430,63 @@ func (data *Data) gcd() {
 
 }
 
-func (data *Data) generatedShards(shardN int) *meta.ShardGroupInfos {
+func (data *Data) generatedShards(shardN int) []meta.ShardInfo {
 	// Create shards on the group.
-	shards = make([]meta.ShardInfo, shardN)
+	shards := make([]meta.ShardInfo, shardN)
 	for i := range shards {
-		data.MaxShardID++
-		shards[i] = meta.ShardInfo{ID: data.MaxShardID}
+		data.Data.MaxShardID++
+		shards[i] = meta.ShardInfo{ID: data.Data.MaxShardID}
 	}
 
-	return s
+	return shards
 }
 
 func (data *Data) TruncateShardsGrops(sg *meta.ShardGroupInfo) error {
-
+	return nil
 }
 
-func (data *Data) AddPendingShardOwner(id uint64) error {
-
+func (data *Data) AddPendingShardOwner(id uint64) {
+	for _, node := range data.MetaNodes {
+		node.PendingShardOwners = append(node.PendingShardOwners, id)
+	}
 }
 
-func (data *Data) RemovePendingShardOwner(id uint64) error {
+func (data *Data) RemovePendingShardOwner(id uint64) {
+	for _, node := range data.MetaNodes {
+		newPso := uint64arr{}
+		for _, pso := range node.PendingShardOwners {
+			if id != pso {
+				newPso = append(newPso, pso)
+			}
+		}
+		node.PendingShardOwners = newPso
+	}
+}
+
+type ShardOwners struct {
+}
+
+func (so *ShardOwners) Len() int {
+	return 0
+}
+
+func (so *ShardOwners) Less(i, j int) bool {
+	return false
+}
+
+func (so *ShardOwners) Swap(i, j int) {
 
 }
 
 //ShardLocation return NodeInfos which is the o of the Shard
 func (data *Data) ShardLocation(shardID uint64) (*meta.ShardInfo, error) {
-	for dbidx, dbi := range data.Databases {
-		for rpidx, rpi := range dbi.RetentionPolicies {
-			for sgidx, sg := range rpi.ShardGroups {
-				for sidx, s := range sg.Shards {
+	for _, dbi := range data.Data.Databases {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sg := range rpi.ShardGroups {
+				for _, s := range sg.Shards {
 					//found such shards, return shards
 					if s.ID == shardID {
-						return s, nil
+						return &s, nil
 					}
 				}
 			}
@@ -474,11 +497,11 @@ func (data *Data) ShardLocation(shardID uint64) (*meta.ShardInfo, error) {
 }
 
 // UpdateShard will update ShardOwner of a Shard according to ShardID
-func (data *Data) UpdateShard(shardID uint64, newOwners []meta.ShardOwner) {
-	for dbidx, dbi := range data.Databases {
-		for rpidx, rpi := range dbi.RetentionPolicies {
-			for sgidx, sg := range rpi.ShardGroups {
-				for sidx, s := range sg.Shards {
+func (data *Data) UpdateShard(shardID uint64, newOwners []meta.ShardOwner) error {
+	for _, dbi := range data.Data.Databases {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sg := range rpi.ShardGroups {
+				for _, s := range sg.Shards {
 					//found such shards, return shards
 					if s.ID == shardID {
 						s.Owners = newOwners
@@ -497,7 +520,7 @@ func (data *Data) AddShardOwner(shardID, nodeID uint64) error {
 		if !si.OwnedBy(nodeID) {
 			o := si.Owners
 			o = append(o, meta.ShardOwner{NodeID: nodeID})
-			sort.Sort(o)
+			// sort.Sort(o)
 			return data.UpdateShard(shardID, o)
 		}
 	}
@@ -509,14 +532,14 @@ func (data *Data) RemoveShardOwner(shardID, nodeID uint64) error {
 	si, err := data.ShardLocation(shardID)
 	if err != nil {
 		if si.OwnedBy(nodeID) {
-			O, _ := data.PruneShard(si, nodeID)
+			o, _ := data.PruneShard(si, nodeID)
 			data.UpdateShard(shardID, o)
 		}
 	}
 	return err
 }
 
-func (data *Data) PruneShard(si meta.ShardInfo, nodeID uint64) ([]meta.ShardOwner, error) {
+func (data *Data) PruneShard(si *meta.ShardInfo, nodeID uint64) ([]meta.ShardOwner, error) {
 	found := -1
 	for i, o := range si.Owners {
 		if o.NodeID == nodeID {
@@ -527,8 +550,8 @@ func (data *Data) PruneShard(si meta.ShardInfo, nodeID uint64) ([]meta.ShardOwne
 
 	if found != -1 {
 		copy(si.Owners[found:], si.Owners[found+1:])
-		si.Owners[len(si.Owners)-1] = nil
-		si.Owners = si.Owners[:len(si.Owners)-1]
+		// si.Owners[len(si.Owners)-1] = nil
+		// si.Owners = si.Owners[:len(si.Owners)-1]
 		return si.Owners, nil
 	}
 	return nil, fmt.Errorf("failed to find shard owner %d", nodeID)
@@ -536,22 +559,24 @@ func (data *Data) PruneShard(si meta.ShardInfo, nodeID uint64) ([]meta.ShardOwne
 
 //TODO all role can be waited until cluster works fine
 func (data *Data) CreateRole() error {
-	//make map
+	return nil
 }
 
 func (data *Data) DropRole(role *RoleInfo) error {
-	ridx := -1
-	for i, r := range data.Roles {
-		if r == role {
-			ridx = i
-			break
-		}
-	}
+	// ridx := -1
+	// for i, r := range data.Roles {
+	// 	if r == role {
+	// 		ridx = i
+	// 		break
+	// 	}
+	// }
 
-	if rdx != -1 {
-		return
-	}
-	data.Roles = copy
+	// if rdx != -1 {
+	// 	return
+	// }
+	// data.Rol
+	// es = copy
+	return nil
 }
 
 func (data *Data) Role(name string) *RoleInfo {
@@ -560,7 +585,7 @@ func (data *Data) Role(name string) *RoleInfo {
 	// 		return &data.Roles[i]
 	// 	}
 	// }
-	// return nil
+	return nil
 }
 
 func (data *Data) role() {
@@ -630,62 +655,64 @@ func (data *Data) DropUser(name string) error {
 }
 
 func (data *Data) SetUserPassword(pass string) error {
-
+	return nil
 }
 
 func (data *Data) AddUserPermissions() error {
-
+	return nil
 }
 
 func (data *Data) RemoveUserPermissions() error {
-
+	return nil
 }
 
 func (data *Data) UserPermissions() *ScopedPermissions {
-
+	return nil
 }
 
 // UserPrivilege gets the privilege for a user on a database.
 func (data *Data) UserPrivilege(name, database string) (*influxql.Privilege, error) {
-	ui := data.User(name)
-	if ui == nil {
-		return nil, ErrUserNotFound
-	}
+	// ui := data.User(name)
+	// if ui == nil {
+	// 	return nil, ErrUserNotFound
+	// }
 
-	for db, p := range ui.Privileges {
-		if db == database {
-			return &p, nil
-		}
-	}
+	// for db, p := range ui.Privileges {
+	// 	if db == database {
+	// 		return &p, nil
+	// 	}
+	// }
 
-	return influxql.NewPrivilege(influxql.NoPrivileges), nil
+	// return influxql.NewPrivilege(influxql.NoPrivileges), nil
+	return nil, nil
 }
 
 // UserPrivileges gets the privileges for a user.
 func (data *Data) UserPrivileges(name string) (map[string]influxql.Privilege, error) {
-	ui := data.User(name)
-	if ui == nil {
-		return nil, ErrUserNotFound
-	}
+	// ui := data.User(name)
+	// if ui == nil {
+	// return nil, ErrUserNotFound
+	// }
 
-	return ui.Privileges, nil
+	// return ui.Privileges, nil
+	return nil, nil
 }
 
 func (data *Data) OSSUser() {
-	users := data.Users()
-	for _, usr := range users {
-		data.UserPermissions(usr)
-		//meta.AddAdminPermissions
-		data.Authorized()
-	}
+	// users := data.Users
+	// for _, usr := range users {
+	// data.UserPermissions(usr)
+	//meta.AddAdminPermissions
+	// data.Authorized()
+	// }
 }
 
 func (data *Data) OSSAdminExists() {
-	data.Authorized()
+	// data.Authorized()
 }
 
 func (data *Data) CloneRoles() []RoleInfo {
-
+	return nil
 }
 
 func (data *Data) CloneUsers() []UserInfo {
@@ -694,34 +721,34 @@ func (data *Data) CloneUsers() []UserInfo {
 	}
 
 	usr := make([]UserInfo, len(data.Users))
-	for i := range data.Users {
-		usr[i] = data.Users[i].clone()
-	}
+	// for i := range data.Users {
+	// usr[i] = data.Users[i].
+	// }
 
 	return usr
-
 }
 
 func (data *Data) Authorized(userName string) {
-	usr := data.User(userName)
+	// usr := data.User(userName)
 	//iter a map
-	permission := data.hasPermissions(usr)
+	// permission := data.hasPermissions(usr)
 }
 
 func (data *Data) hasPermissions(usr UserInfo) bool {
 	//ScopedPermissions.Contains(usr)
 	//RoleInfo.Authorized
+	return false
 }
 
 //TODO finish this until we have a demo to run
-func (data *Data) ImportData(buf []bytes) error {
+func (data *Data) ImportData(buf []byte) error {
 	// other := Data{}
 	// if err := other.UnmarshalBinary(buf); err != nil {
 	// 	return err
 	// }
 
 	// // Restrict(other)
-	// for dbidx, db := range data.Databases {
+	// for dbidx, db := range data.Data.Databases {
 	// 	dbn := other.Database(db.Name)
 	// 	if dbn == nil {
 	// 		if err = other.CreateDatabase(db.Name); err != nil {
@@ -736,7 +763,50 @@ func (data *Data) ImportData(buf []bytes) error {
 	// }
 	//sort
 	//call gcd
+	return nil
 }
+
+// NodeInfo represents information about a single node in the cluster.
+type NodeInfo struct {
+	ID                 uint64
+	Host               string
+	TCPHost            string
+	PendingShardOwners uint64arr
+}
+
+// clone returns a deep copy of ni.
+func (ni NodeInfo) clone() NodeInfo { return ni }
+
+// marshal serializes to a protobuf representation.
+func (ni NodeInfo) marshal() *internal.NodeInfo {
+	pb := &internal.NodeInfo{}
+	pb.ID = proto.Uint64(ni.ID)
+	pb.Host = proto.String(ni.Host)
+	pb.TCPHost = proto.String(ni.TCPHost)
+	// pb.PendingShardOwners = proto.
+	// for i, pso := range ni.PendingShardOwners {
+	// 	// pb.PendingShardOwners = append(pb.PendingShardOwners, proto.Uint64(pso))
+	// }
+	return pb
+}
+
+// unmarshal deserializes from a protobuf representation.
+func (ni *NodeInfo) unmarshal(pb *internal.NodeInfo) {
+	ni.ID = pb.GetID()
+	ni.Host = pb.GetHost()
+	ni.TCPHost = pb.GetTCPHost()
+	ni.PendingShardOwners = make(uint64arr, len(pb.GetPendingShardOwners()))
+	for i, pso := range pb.GetPendingShardOwners() {
+		ni.PendingShardOwners[i] = pso
+	}
+}
+
+// NodeInfos is a slice of NodeInfo used for sorting
+type NodeInfos []NodeInfo
+
+func (n NodeInfos) Len() int           { return len(n) }
+func (n NodeInfos) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
+func (n NodeInfos) Less(i, j int) bool { return n[i].ID < n[j].ID }
 
 type UserInfo struct {
 	Name       string
@@ -746,18 +816,19 @@ type UserInfo struct {
 }
 
 func (u *UserInfo) unmarshal(pb internal.UserInfo) error {
-	u.Privileges.unmarshal()
+	// return u.Privileges.unmarshal()
+	return nil
 }
 
 func (u *UserInfo) InfluxDBUser() *UserInfo {
-
+	return nil
 }
 
 type PermissionsSet struct {
 }
 
 func (ps *PermissionsSet) Len() int {
-
+	return 0
 }
 
 func (ps *PermissionsSet) Swap(i, j int) {}
@@ -770,15 +841,12 @@ func (ps *PermissionsSet) Delete() {}
 
 func (ps *PermissionsSet) Contains() {}
 
-func (ps *PermissionsSet) Clone()  {}
-func (ps *PermissionsSet) Delete() {}
-
 type RoleInfo struct {
 	Users []UserInfo
 }
 
 func (r *RoleInfo) clone() *RoleInfo {
-
+	return nil
 }
 
 func (r *RoleInfo) marshal() {
@@ -801,7 +869,7 @@ func (r *RoleInfo) RemoveUsers(users []UserInfo) {
 	}
 }
 
-func (r *RoleInfo) AddUser(user UserInfo) bool {
+func (r *RoleInfo) AddUser(user UserInfo) {
 	r.Users = append(r.Users, user)
 }
 
@@ -817,7 +885,7 @@ func (r *RoleInfo) RemoveUser(user UserInfo) {
 	if deleteIndex == -1 {
 		return
 	}
-	r.Users = append(r.Users[:deleteIndex], r.Users[deleteIndex+1:])
+	// r.Users = append(r.Users[:deleteIndex], r.Users[deleteIndex+1:])
 }
 
 func (r *RoleInfo) HasUser(user UserInfo) bool {
@@ -825,7 +893,7 @@ func (r *RoleInfo) HasUser(user UserInfo) bool {
 		return r.Users[i] == user
 	})
 
-	return res < len(r.Users) && r.Users[i] == user
+	return res < len(r.Users) && r.Users[res] == user
 }
 
 type RoleInfos []RoleInfo
@@ -834,7 +902,6 @@ func (rs *RoleInfos) Len()        {}
 func (rs *RoleInfos) Swap()       {}
 func (rs *RoleInfos) Less()       {}
 func (rs *RoleInfos) Authorized() {}
-func (rs *RoleInfos) Len()        {}
 
 type uint64arr []uint64
 
@@ -847,24 +914,30 @@ type ScopedPermissions struct {
 
 func (scp *ScopedPermissions) unmarshal(buf []byte) error {
 	//call add
+	return nil
 }
 
 func (scp *ScopedPermissions) Clone() *ScopedPermissions {
 
+	return nil
 }
 
 func (scp *ScopedPermissions) Add() error {
 
+	return nil
 }
 
 func (scp *ScopedPermissions) Delete() error {
 
+	return nil
 }
 
 func (scp *ScopedPermissions) Contains() bool {
 
+	return false
 }
 
 func (scp *ScopedPermissions) Matches() bool {
 
+	return false
 }
