@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/cmd"
-	"github.com/zhexuany/influxdb-cluster/cmd/influxd-meta/help"
 	"github.com/zhexuany/influxdb-cluster/cmd/influxd-meta/run"
 )
 
@@ -117,10 +116,6 @@ func (m *Main) Run(args ...string) error {
 	case "version":
 		if err := NewVersionCommand().Run(args...); err != nil {
 			return fmt.Errorf("version: %s", err)
-		}
-	case "help":
-		if err := help.NewCommand().Run(args...); err != nil {
-			return fmt.Errorf("help: %s", err)
 		}
 	default:
 		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", name)

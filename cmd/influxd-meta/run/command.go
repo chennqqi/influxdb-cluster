@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"time"
 )
 
 const logo = `
@@ -88,18 +87,13 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Apply any environment variables on top of the parsed config
-	// if err := config.ApplyEnvOverrides(); err != nil {
-	// return fmt.Errorf("apply env config: %v", err)
-	// }
+	if err := config.ApplyEnvOverrides(); err != nil {
+		return fmt.Errorf("apply env config: %v", err)
+	}
 
 	// Validate the configuration.
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err)
-	}
-
-	if config.HTTPD.PprofEnabled {
-		// Turn on block profiling to debug stuck databases
-		runtime.SetBlockProfileRate(int(1 * time.Second))
 	}
 
 	// Create server from config and start it.
@@ -107,7 +101,6 @@ func (cmd *Command) Run(args ...string) error {
 		Version: cmd.Version,
 		Commit:  cmd.Commit,
 		Branch:  cmd.Branch,
-		Time:    cmd.BuildTime,
 	}
 	s, err := NewServer(config, buildInfo)
 	if err != nil {

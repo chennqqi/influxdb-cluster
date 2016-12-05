@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+	"github.com/zhexuany/influxdb-cluster/meta"
 )
 
 // PrintConfigCommand represents the command executed by "influxd config".
@@ -60,10 +61,10 @@ func (cmd *PrintConfigCommand) Run(args ...string) error {
 
 // ParseConfig parses the config at path.
 // Returns a demo configuration if path is blank.
-func (cmd *PrintConfigCommand) parseConfig(path string) (*Config, error) {
-	config, err := NewDemoConfig()
-	if err != nil {
-		config = NewConfig()
+func (cmd *PrintConfigCommand) parseConfig(path string) (*meta.Config, error) {
+	config := meta.NewDemoConfig()
+	if config != nil {
+		config = meta.NewConfig()
 	}
 
 	if path == "" {
