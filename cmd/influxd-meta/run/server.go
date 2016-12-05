@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -32,7 +33,8 @@ type BuildInfo struct {
 }
 
 func (bi *BuildInfo) String() string {
-
+	return fmt.Sprintf("Version %s, Commit %s, Branch %s, Tags %s",
+		bi.Version, bi.Commit, bi.Branch, bi.Tags)
 }
 
 // Server represents a container for the metadata and storage data and services.
@@ -63,7 +65,7 @@ type Server struct {
 	// httpAPIAddr is the host:port combination for the main HTTP API for querying and writing data
 	httpAPIAddr string
 
-	config *Config
+	config *meta.Config
 
 	// logOutput is the writer to which all services should be configured to
 	// write logs to after appension.
@@ -71,7 +73,7 @@ type Server struct {
 }
 
 // NewServer returns a new instance of Server built from a config.
-func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
+func NewServer(c *meta.Config, buildInfo *BuildInfo) (*Server, error) {
 	// We need to ensure that a meta directory always exists even if
 	// we don't start the meta store.  node.json is always stored under
 	// the meta directory.
@@ -93,20 +95,28 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
+	// load node from node.json and check the error
 	node, err := influxdb.LoadNode(newPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, err
 		}
 	}
-	// ioutil.ReadFile(filepath.Join())
-	if err != nil {
+
+	//LoadNode will just pasrse node.json file and create a instance
+	//node. So, node.json wiill not be changed util we trigger from program
+	//Hence, we have to check path in original node.json include the newPath
+	//instead of oldPath. If not, we have to save such node instance to
+	//node.json file
+	if buf, err := ioutil.ReadFile(filepath.Join(newPath)); err != nil {
+		if !strings.Contains(string(buf), "path") {
+			node.Save()
+		}
 	}
 
 	// In 0.10.0 bind-address got moved to the top level. Check
 	// The old location to keep things backwards compatible
-	bind := c.BindAddress
-	//strings.Contains()
+	bind := c.Meta.BindAddress
 
 	s := &Server{
 		buildInfo: *buildInfo,
@@ -121,31 +131,13 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		Service: meta.NewService(c.Meta),
 
-		reportingDisabled: c.ReportingDisabled,
-
-		httpAPIAddr: c.HTTPD.BindAddress,
-		httpUseTLS:  c.HTTPD.HTTPSEnabled,
-		tcpAddr:     bind,
+		httpAPIAddr: c.Meta.HTTPBindAddress,
 
 		config:    c,
 		logOutput: os.Stderr,
 	}
 
 	return s, nil
-}
-
-func (s *Server) Statistics(tags map[string]string) []models.Statistic {
-	var statistics []models.Statistic
-	statistics = append(statistics, s.QueryExecutor.Statistics(tags)...)
-	statistics = append(statistics, s.TSDBStore.Statistics(tags)...)
-	statistics = append(statistics, s.PointsWriter.Statistics(tags)...)
-	statistics = append(statistics, s.Subscriber.Statistics(tags)...)
-	for _, srv := range s.Services {
-		if m, ok := srv.(monitor.Reporter); ok {
-			statistics = append(statistics, m.Statistics(tags)...)
-		}
-	}
-	return statistics
 }
 
 // SetLogOutput sets the logger used for all messages. It must not be called
@@ -171,11 +163,12 @@ func (s *Server) Open() error {
 	}
 	s.Listener = ln
 
-	//initializes metaClietn
-	s.MetaClient = s.initializeMetaClient()
+	//initializes metaClient
+	s.initializeMetaClient()
 	// Multiplex listener.
 	mux := tcp.NewMux()
-	go mux.Listen(ln)
+	// go mux.Listen(byte())
+	go mux.Serve(ln)
 	if err := s.MetaClient.Open(); err != nil {
 		return err
 	}
@@ -189,17 +182,16 @@ func (s *Server) Open() error {
 	return nil
 }
 
-func (s *Server) initializeMetaClient() *meta.Client {
-	//a is slice of string
-	s.MetaClient.SetMetaServers(a)
-	s.MetaClient.SetTLS(v)
+//TODO need revist this
+func (s *Server) initializeMetaClient() {
+	s.MetaClient.SetMetaServers(nil)
+	s.MetaClient.SetTLS(s.config.Meta.HTTPSEnabled)
 	if s.MetaClient.HTTPClient != nil {
-		s.MetaClient.SetHTTPClient(h)
+		s.MetaClient.SetHTTPClient(nil)
 	}
-	s.MetaClient.SetAuthInfo(au)
+	s.MetaClient.SetAuthInfo(s.config.Meta.RemoteHostname)
 	s.MetaClient.Open()
 	s.MetaClient.WaitForDataChanged()
-	return c
 }
 
 // Close shuts down the meta and data stores and all services.
@@ -213,7 +205,7 @@ func (s *Server) Close() error {
 
 	s.MetaClient.Close()
 
-	s.service.Close()
+	s.Service.Close()
 
 	close(s.closing)
 	return nil
@@ -237,35 +229,34 @@ func (s *Server) startServerReporting() {
 
 // reportServer reports usage statistics about the system.
 func (s *Server) reportServer() {
-	dis := s.MetaClient.Databases()
-	numDatabases := len(dis)
+	// dis, _ := s.MetaClient.Databases()
+	// numDatabases := len(dis)
 
-	numMeasurements := 0
-	numSeries := 0
+	// numMeasurements := 0
+	// numSeries := 0
 
-	clusterID := s.MetaClient.ClusterID()
-	cl := client.New("")
-	usage := client.Usage{
-		Product: "influxdb",
-		Data: []client.UsageData{
-			{
-				Values: client.Values{
-					"os":               runtime.GOOS,
-					"arch":             runtime.GOARCH,
-					"version":          s.buildInfo.Version,
-					"cluster_id":       fmt.Sprintf("%v", clusterID),
-					"num_series":       numSeries,
-					"num_measurements": numMeasurements,
-					"num_databases":    numDatabases,
-					"uptime":           time.Since(startTime).Seconds(),
-				},
-			},
-		},
-	}
+	// clusterID := s.MetaClient.ClusterID()
+	// usage := client.Usage{
+	// 	Product: "influxdb",
+	// 	Data: []client.UsageData{
+	// 		{
+	// 			Values: client.Values{
+	// 				"os":               runtime.GOOS,
+	// 				"arch":             runtime.GOARCH,
+	// 				"version":          s.buildInfo.Version,
+	// 				"cluster_id":       fmt.Sprintf("%v", clusterID),
+	// 				"num_series":       numSeries,
+	// 				"num_measurements": numMeasurements,
+	// 				"num_databases":    numDatabases,
+	// 				"uptime":           time.Since(startTime).Seconds(),
+	// 			},
+	// 		},
+	// 	},
+	// }
 
 	s.Logger.Printf("Sending usage statistics to usage.influxdata.com")
 
-	go cl.Save(usage)
+	// go cl.Save(usage)
 }
 
 // monitorErrorChan reads an error channel and resends it through the server.
@@ -342,11 +333,3 @@ type tcpaddr struct{ host string }
 
 func (a *tcpaddr) Network() string { return "tcp" }
 func (a *tcpaddr) String() string  { return a.host }
-
-// monitorPointsWriter is a wrapper around `coordinator.PointsWriter` that helps
-// to prevent a circular dependency between the `cluster` and `monitor` packages.
-type monitorPointsWriter coordinator.PointsWriter
-
-func (pw *monitorPointsWriter) WritePoints(database, retentionPolicy string, points models.Points) error {
-	return (*coordinator.PointsWriter)(pw).WritePoints(database, retentionPolicy, models.ConsistencyLevelAny, points)
-}
