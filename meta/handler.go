@@ -64,6 +64,202 @@ func newHandler(c *MetaConfig, s *Service) *handler {
 	return h
 }
 
+func (a Announcements) Filter() {
+	
+}
+func (a *Announcement) validate() {
+	
+}
+func (a *Announcement) UnmarshalJSON() {
+	
+}
+func Announcement expired() {
+	
+}
+func verifyCreatingAdmin() {
+	
+}
+func (h *handler) redirectLeader() {
+	
+}
+func (h *handler) machineEntitled() {
+	
+}
+func (h *handler) serveJoin() {
+	
+}
+func (h *handler) serveLeave() {
+	
+}
+func (h *handler) serveRemoveMeta() {
+	
+}
+func (h *handler) serveAddData() {
+	
+}
+func (h *handler) incrementInternalRF() {
+	
+}
+func .RPCCall.send() {
+	
+}
+func (h *handler) sendDataNodeJoin() {
+	
+}
+func (h *handler) serveRemoveData() {
+	
+}
+func (h *handler) sendDataNodeLeave() {
+	
+}
+func (h *handler) serveUpdateData() {
+	
+}
+func (h *handler) verifyDataNode() {
+	
+}
+func (h *handler) serveExec() {
+	
+}
+func (h *handler) serveRemoveShard() {
+	
+}
+func (h *handler) serveCopyShardStatus() {
+	
+}
+func (h *handler) serveCopyShard() {
+	
+}
+func (h *handler) serveKillCopyShard() {
+	
+}
+func (h *handler) serveTruncateShards() {
+	
+}
+func .validateCommand() {
+	
+}
+func (h *handler) serveSnapshot() {
+	
+}
+func (h *handler) serveRestoreMeta() {
+	
+}
+func (h *handler) servePing() {
+	
+}
+func (h *handler) serveStatus() {
+	
+}
+func (h *handler) serveShowCluster() {
+	
+}
+func (h *handler) serveShowShards() {
+	
+}
+func (h *handler) serveLease() {
+	
+}
+func (h *handler) serveAnnounce() {
+	
+}
+func (h *handler) gossipAnnouncements() {
+	
+}
+func (h *handler) mergeAnnouncements() {
+	
+}
+func .gzipResponseWriter.Write() {
+	
+}
+func .gzipResponseWriter.Flush() {
+	
+}
+func .gzipResponseWriter.CloseNotify() {
+	
+}
+func .gzipFilter() {
+	
+}
+func .versionHeader() {
+	
+}
+func .requestID() {
+	
+}
+func .logging() {
+	
+}
+func .recovery() {
+	
+}
+func (h *handler) jsonError() {
+	
+}
+func (h *handler) httpError() {
+	
+}
+func (h *handler) serveGetUser() {
+	
+}
+func .readUserAction() {
+	
+}
+func (h *handler) servePostUser() {
+	
+}
+func (h *handler) createUser() {
+	
+}
+func (h *handler) deleteUser() {
+	
+}
+func (h *handler) changeUserPassword() {
+	
+}
+func (h *handler) addUserPermissions() {
+	
+}
+func (h *handler) removeUserPermissions() {
+	
+}
+func (h *handler) serveGetRole() {
+	
+}
+func (h *handler) servePostRole() {
+	
+}
+func (h *handler) createRole() {
+	
+}
+func (h *handler) deleteRole() {
+	
+}
+func (h *handler) addRoleUsers() {
+	
+}
+func (h *handler) removeRoleUsers() {
+	
+}
+func (h *handler) addRolePermissions() {
+	
+}
+func (h *handler) removeRolePermissions() {
+	
+}
+func (h *handler) changeRoleName() {
+	
+}
+func (h *handler) serveAuthorized() {
+	
+}
+func parseCredentials() {
+	
+}
+func (h *handler) jwtKeyLookup() {
+	
+}
+
 // SetRoutes sets the provided routes on the handler.
 func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 	var handler http.Handler

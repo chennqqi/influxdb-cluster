@@ -113,7 +113,7 @@ func (s *store) open(raftln net.Listener) error {
 		// raft will take a little bit to normalize so that this host
 		// will be marked as the leader
 		for {
-			// err := s.waitForLeader(s.config.ElectionTimeout)
+			err := s.waitForLeader(time.Duration(s.config.ElectionTimeout))
 			if err == nil {
 				break
 			}
@@ -320,17 +320,20 @@ func (s *store) otherMetaServersHTTP() []string {
 }
 
 func (s *store) dataNode() NodeInfos {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.data.DataNodes
 }
 
-func (s *store) dataNodeByTCPHost() []string {
+func (s *store) dataNodeByTCPHost(tcpHost string) NodeInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var a []string
 	for _, n := range s.data.DataNodes {
-		a = append(a, n.Host)
+		if n.TCPHost == tcpHost {
+			return n
+		}
 	}
-	return a
+	return nil
 }
 
 // index returns the current store index.
@@ -413,7 +416,7 @@ func (s *store) deleteMetaNode(id uint64) error {
 	t := internal.Command_DeleteMetaNodeCommand
 	cmd := &internal.Command{Type: &t}
 	if err := proto.SetExtension(cmd, internal.E_DeleteMetaNodeCommand_Command, val); err != nil {
-		// painc(err)
+		painc(err)
 	}
 
 	b, err := proto.Marshal(cmd)
@@ -461,18 +464,159 @@ func (s *store) deleteDataNode(id uint64) error {
 	return s.apply(b)
 }
 
-// func (s *store) updateDataNode() error {
-// }
-// func (s *store) nodeByHTTPAddr() error {
-// }
-// func (s *store) copyShard() error {
-// }
-// func (s *store) removeShard() error {
-// }
-// func (s *store) killCopyShard() error {
-// }
+func (s *store) updateDataNode(id uint64, host, tcpHost string) error {
+	val := &internal.UpdateDataNodeCommand{
+		ID:      proto.Uint64(id),
+		Host:    proto.String(host),
+		TCPHost: proto.String(tcpHost),
+	}
 
-// // remoteNodeError.Error() {
+	t := internal.Command_UpdateDataNodeCommand
+
+	cmd := &internal.Command{Type: &t}
+	if err := proto.SetExtension(cmd, internal.E_UpdateDataNodeCommand_Command, val); err != nil {
+		panic(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return err
+	}
+
+	return s.apply(b)
+}
+
+func (s *store) nodeByHTTPAddr(addr string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, ni := range s.data.DataNodes {
+		if ni.Host == addr {
+			return ni, nil
+		}
+	}
+	//TODO zhexuany which group of node that we should look into
+	for _, ni := range s.data.MetaNodes {
+		if ni.Host == addr {
+			return ni, nil
+		}
+	}
+
+	return nil, ErrNodeNotFound
+}
+
+// copyShard copies shard with shardID from src to dst
+func (s *store) copyShard(src, dst string, shardID uint64) error {
+	if !s.ready() {
+		return ErrServiceUnavailable
+	}
+
+	s.mu.RLock()
+	si, err := s.data.ShardLocation(shardID)
+	s.mu.RUnlock()
+	if err != nil {
+		return err
+	}
+
+	//locate destination node
+	dstNode := s.dataNodeByTCPHost(dst)
+	if dstNode == nil {
+		return ErrNodeNotFound
+	}
+
+	//if shard already own by dst node, then just return
+	if si.OwnedBy(dstNode.ID) {
+		return nil
+	}
+
+	srcNode := s.dataNodeByTCPHost(src)
+	if srcNode == nil {
+		return ErrNodeNotFound
+	}
+
+	//if shard is not owned by src node, then return error
+	if !si.OwnedBy(srcNode) {
+		return errors.New("source node does not contain shard")
+	}
+
+	//TODO figure out how to copy shard from src to dst
+	// val := &internal.AddPendingShardOwnerCommand{
+	// 	ID:     si.ID,
+	// 	NodeID: dstNode.ID,
+	// }
+
+	// t := internal.Command_AddPendingShardOwnerCommand
+
+	// cmd := &internal.Command{Type: &t}
+	// if err := proto.SetExtension(cmd, internal.E_AddPendingShardOwnerCommand_Command, val); err != nil {
+	// 	panic(err)
+	// }
+
+	// b, err := proto.Marshal(cmd)
+	// if err != nil {
+	// 	return err
+	// }
+
+	srcConn, err := net.Dial("tcp", srcNode.TCPHost)
+	if err != nil {
+		return err
+	}
+
+	s.mu.RLock()
+	//read some value may be used for the following
+	s.mu.RUnlock()
+
+	if err := s.apply(b); err != nil {
+		return err
+	}
+}
+
+func (s *store) removeShard(dst string, shardID uint64) error {
+	if !s.ready() {
+		return ErrServiceUnavailable
+	}
+	dstNode, err := s.dataNodeByTCPHost(dst)
+	if err != nil {
+		return err
+	}
+
+	s.mu.RLock()
+	si, err := s.data.ShardLocation(shardID)
+	s.mu.RUnlock()
+
+	if err != nil {
+		return err
+	}
+	val := &internal.DropShardCommand{
+		ID: shardID,
+	}
+
+	t := &internal.E_DropShardCommand_Command
+	cmd := &internal.Command{Type: &t}
+	if err := proto.SetExtension(cmd, internal.E_DropShardCommand_Command, val); err != nil {
+		panic(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return err
+	}
+
+	return s.apply(b)
+
+}
+
+func (s *store) killCopyShard(dst string, id uint64) error {
+	if s.ready() {
+		return ErrServiceUnavailable
+	}
+
+	ni, err := s.dataNodeByTCPHost(dst)
+	if err != nil {
+		return nil
+	}
+}
+
+// remoteNodeError.Error() {
 
 // func (s *store) executeCopyShardStatus() error {
 // }

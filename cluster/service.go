@@ -18,6 +18,7 @@ func (s *Service) Close() {
 func (s *Service) Statistics() {
 
 }
+
 func (s *Service) handleConn() {
 
 }
@@ -61,7 +62,8 @@ func (s *Service) processDeleteShardSnapshotRequest() {
 
 }
 func ReadTLV() {
-
+	//tlv.ReadType()
+	///tlv.ReadLV()
 }
 func (s *Service) processExpandSourcesRequest() {
 

@@ -332,17 +332,17 @@ func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 	return n, nil
 }
 
-func (c *Client) ShardPendingOwners() {
+func (c *Client) ShardPendingOwners() *ShardOwners {
 	// c.data()
 }
 
-func (c *Client) RemovePendingShardOwner() {}
+func (c *Client) RemovePendingShardOwner(id uint64) error {}
 
-func (c *Client) CommitPendingShardOwner() {}
+func (c *Client) CommitPendingShardOwner(id uint64) error {}
 
-func (c *Client) AddShardOwner() {}
+func (c *Client) AddShardOwner(id uint64) error {}
 
-func (c *Client) RemoveShardOwner() {}
+func (c *Client) RemoveShardOwner(id uint64) error {}
 
 func (c *Client) UpdateDataNode() {}
 

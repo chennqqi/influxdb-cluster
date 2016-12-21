@@ -79,7 +79,7 @@ func (data *Data) MetaNode(id uint64) *NodeInfo {
 	return nil
 }
 
-func (data *Data) CreateMetaNode(host, tcpHost string, pendingShardOwners uint64arr) error {
+func (data *Data) CreateMetaNode(host, tcpHost string) error {
 	// Ensure a node with the same host doesn't already exist.
 	for _, n := range data.DataNodes {
 		if n.TCPHost == tcpHost {
@@ -104,6 +104,7 @@ func (data *Data) CreateMetaNode(host, tcpHost string, pendingShardOwners uint64
 	}
 
 	// Append new node.
+	pendingShardOwners := make(uint64arr, 0)
 	data.MetaNodes = append(data.MetaNodes, NodeInfo{
 		ID:                 existingID,
 		Host:               host,
@@ -118,7 +119,7 @@ func (data *Data) CreateMetaNode(host, tcpHost string, pendingShardOwners uint64
 
 // SetMetaNode adds a meta node with a pre-specified nodeID.
 // this should only be used when the cluster is upgrading from 0.9 to 0.10
-func (data *Data) SetMetaNode(nodeID uint64, host, tcpHost string, pendingShardOwners uint64arr) error {
+func (data *Data) SetMetaNode(nodeID uint64, host, tcpHost string) error {
 	// Ensure a node with the same host doesn't already exist.
 	for _, n := range data.MetaNodes {
 		if n.Host == host {
@@ -128,6 +129,7 @@ func (data *Data) SetMetaNode(nodeID uint64, host, tcpHost string, pendingShardO
 
 	//call CreateMetaNode
 	// Append new node.
+	pendingShardOwners := make(uint64arr, 0)
 	data.MetaNodes = append(data.MetaNodes, NodeInfo{
 		ID:                 nodeID,
 		Host:               host,
@@ -463,19 +465,18 @@ func (data *Data) RemovePendingShardOwner(id uint64) {
 	}
 }
 
-type ShardOwners struct {
+type ShardOwners []meta.ShardOwner
+
+func (so ShardOwners) Len() int {
+	return len(so)
 }
 
-func (so *ShardOwners) Len() int {
-	return 0
+func (so ShardOwners) Less(i, j int) bool {
+	return so[i].NodeID < so[j].NodeID
 }
 
-func (so *ShardOwners) Less(i, j int) bool {
-	return false
-}
-
-func (so *ShardOwners) Swap(i, j int) {
-
+func (so ShardOwners) Swap(i, j int) {
+	so[i], so[j] = so[j], so[i]
 }
 
 //ShardLocation return NodeInfos which is the o of the Shard
@@ -492,35 +493,26 @@ func (data *Data) ShardLocation(shardID uint64) (*meta.ShardInfo, error) {
 			}
 		}
 	}
-	//does not find any shards assoicated with this shardID, just reutn nil, nil
+	//does not find any shards assoicated with this shardID, just reutn nil, error
 	return nil, fmt.Errorf("failed to find shards assoicated with %d", shardID)
 }
 
 // UpdateShard will update ShardOwner of a Shard according to ShardID
 func (data *Data) UpdateShard(shardID uint64, newOwners []meta.ShardOwner) error {
-	for _, dbi := range data.Data.Databases {
-		for _, rpi := range dbi.RetentionPolicies {
-			for _, sg := range rpi.ShardGroups {
-				for _, s := range sg.Shards {
-					//found such shards, return shards
-					if s.ID == shardID {
-						s.Owners = newOwners
-					}
-				}
-			}
-		}
-	}
-	return fmt.Errorf("Failed to find Shard assoicated with shard ID", shardID)
+	return fmt.Errorf("Failed to find Shard assoicated with shard ID %d", shardID)
 }
 
 // AddShardOwner will update a shards labelled by shardID in this node if such shards ownby this newly adding node
 func (data *Data) AddShardOwner(shardID, nodeID uint64) error {
 	si, err := data.ShardLocation(shardID)
-	if err != nil {
+	if err == nil {
 		if !si.OwnedBy(nodeID) {
-			o := si.Owners
+			if nodeID > data.MaxNodeID {
+				return nil
+			}
+			o := ShardOwners{}
 			o = append(o, meta.ShardOwner{NodeID: nodeID})
-			// sort.Sort(o)
+			sort.Sort(o)
 			return data.UpdateShard(shardID, o)
 		}
 	}
@@ -562,17 +554,17 @@ func (data *Data) CreateRole() error {
 	return nil
 }
 
-func (data *Data) DropRole(role *RoleInfo) error {
+func (data *Data) DropRole(role RoleInfo) error {
 	// ridx := -1
-	// for i, r := range data.Roles {
-	// 	if r == role {
+	// for i, _ := range data.Roles {
+	// 	if role.Users == data.Roles[i].Users {
 	// 		ridx = i
 	// 		break
 	// 	}
 	// }
 
-	// if rdx != -1 {
-	// 	return
+	// if ridx != -1 {
+	// 	return errors.New("role not found")
 	// }
 	// data.Rol
 	// es = copy
@@ -783,10 +775,10 @@ func (ni NodeInfo) marshal() *internal.NodeInfo {
 	pb.ID = proto.Uint64(ni.ID)
 	pb.Host = proto.String(ni.Host)
 	pb.TCPHost = proto.String(ni.TCPHost)
-	// pb.PendingShardOwners = proto.
-	// for i, pso := range ni.PendingShardOwners {
-	// 	// pb.PendingShardOwners = append(pb.PendingShardOwners, proto.Uint64(pso))
-	// }
+	pb.PendingShardOwners = make(uint64arr, len(ni.PendingShardOwners))
+	for i, pso := range ni.PendingShardOwners {
+		pb.PendingShardOwners = append(pb.PendingShardOwners, *proto.Uint64(pso))
+	}
 	return pb
 }
 
@@ -795,10 +787,7 @@ func (ni *NodeInfo) unmarshal(pb *internal.NodeInfo) {
 	ni.ID = pb.GetID()
 	ni.Host = pb.GetHost()
 	ni.TCPHost = pb.GetTCPHost()
-	ni.PendingShardOwners = make(uint64arr, len(pb.GetPendingShardOwners()))
-	for i, pso := range pb.GetPendingShardOwners() {
-		ni.PendingShardOwners[i] = pso
-	}
+	ni.PendingShardOwners = pb.GetPendingShardOwners()
 }
 
 // NodeInfos is a slice of NodeInfo used for sorting
@@ -808,6 +797,7 @@ func (n NodeInfos) Len() int           { return len(n) }
 func (n NodeInfos) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
 func (n NodeInfos) Less(i, j int) bool { return n[i].ID < n[j].ID }
 
+//TODO (zhexuany) do not worry about this until alpha version
 type UserInfo struct {
 	Name       string
 	Hash       string
@@ -827,13 +817,13 @@ func (u *UserInfo) InfluxDBUser() *UserInfo {
 type PermissionsSet struct {
 }
 
-func (ps *PermissionsSet) Len() int {
+func (ps PermissionsSet) Len() int {
 	return 0
 }
 
-func (ps *PermissionsSet) Swap(i, j int) {}
+func (ps PermissionsSet) Swap(i, j int) {}
 
-func (ps *PermissionsSet) Less() {}
+func (ps PermissionsSet) Less(i, j int) {}
 
 func (ps *PermissionsSet) Clone()  {}
 func (ps *PermissionsSet) Add()    {}
@@ -898,46 +888,57 @@ func (r *RoleInfo) HasUser(user UserInfo) bool {
 
 type RoleInfos []RoleInfo
 
-func (rs *RoleInfos) Len()        {}
-func (rs *RoleInfos) Swap()       {}
-func (rs *RoleInfos) Less()       {}
-func (rs *RoleInfos) Authorized() {}
+func (rs RoleInfos) Len() int {
+	return len(rs)
+}
+
+func (rs RoleInfos) Swap(i, j int) {
+	rs[i], rs[j] = rs[j], rs[i]
+}
+
+func (rs RoleInfos) Less(i, j int) bool {
+	return len(rs[i].Users) < len(rs[j].Users)
+}
+
+func (rs RoleInfos) Authorized() {}
 
 type uint64arr []uint64
 
-func (u *uint64arr) Len()  {}
-func (u *uint64arr) Swap() {}
-func (u *uint64arr) Less() {}
+func (u uint64arr) Len() int {
+	return len(u)
+}
+
+func (u uint64arr) Swap(i, j int) {
+	u[i], u[j] = u[j], u[i]
+}
+
+func (u uint64arr) Less(i, j int) bool {
+	return u[i] < u[j]
+}
 
 type ScopedPermissions struct {
 }
 
 func (scp *ScopedPermissions) unmarshal(buf []byte) error {
-	//call add
 	return nil
 }
 
 func (scp *ScopedPermissions) Clone() *ScopedPermissions {
-
 	return nil
 }
 
 func (scp *ScopedPermissions) Add() error {
-
 	return nil
 }
 
 func (scp *ScopedPermissions) Delete() error {
-
 	return nil
 }
 
 func (scp *ScopedPermissions) Contains() bool {
-
 	return false
 }
 
 func (scp *ScopedPermissions) Matches() bool {
-
 	return false
 }

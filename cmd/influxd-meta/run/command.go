@@ -64,7 +64,6 @@ func (cmd *Command) Run(args ...string) error {
 	fmt.Print(logo)
 
 	// Configure default logging.
-	log.SetPrefix("[run] ")
 	log.SetFlags(log.LstdFlags)
 
 	// Set parallelism.
