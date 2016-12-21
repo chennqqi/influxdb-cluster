@@ -76,22 +76,27 @@ func (m *Main) Run(args ...string) error {
 	case "add-data":
 		name := add - data.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("backup: %s", err)
+			return fmt.Errorf("add-data: %s", err)
 		}
 	case "add-meta":
 		name := add - meta.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("backup: %s", err)
+			return fmt.Errorf("add-meta: %s", err)
 		}
 	case "join":
 		name := join.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("backup: %s", err)
+			return fmt.Errorf("join: %s", err)
 		}
 	case "leave":
 		name := leave.NewCommand()
 		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("restore: %s", err)
+		}
+	case "copy-shard":
+		name := add - meta.NewCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("backup: %s", err)
 		}
 	case "", "help":
 		if err := help.NewCommand().Run(args...); err != nil {
