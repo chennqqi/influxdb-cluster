@@ -50,6 +50,19 @@ type handler struct {
 	leases  *Leases
 }
 
+func (a Announcements) Filter() {
+
+}
+func (a *Announcement) validate() {
+
+}
+func (a *Announcement) UnmarshalJSON() {
+
+}
+func (a Announcement) expired() {
+
+}
+
 // newHandler returns a new instance of handler with routes.
 func newHandler(c *MetaConfig, s *Service) *handler {
 	h := &handler{
@@ -80,6 +93,10 @@ func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 	//authorize
 	//authenticate
 	return handler
+}
+
+func verifyCreatingAdmin() {
+
 }
 
 func (h *handler) authorize() {
@@ -229,6 +246,7 @@ func (h *handler) serveJoin(w http.ResponseWriter, r *http.Request) {
 func (h *handler) serveLeave(w http.ResponseWriter, r *http.Request) {
 	h.postform()
 }
+
 func (h *handler) serveRemoveMeta(w http.ResponseWriter, r *http.Request) {
 
 }
@@ -237,9 +255,26 @@ func (h *handler) serveAddData(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (h *handler) incrementInternalRF(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (rpc RPCCall) send() {
+
+}
+
+func (h *handler) sendDataNodeJoin() {
+
+}
+
 func (h *handler) serveRemoveData(w http.ResponseWriter, r *http.Request) {
 
 }
+
+func (h *handler) sendDataNodeLeave() {
+
+}
+
 func (h *handler) serveUpdateData(w http.ResponseWriter, r *http.Request) {
 
 }
@@ -330,6 +365,15 @@ func (h *handler) serveKillCopyShard(w http.ResponseWriter, r *http.Request) {
 }
 func (h *handler) serveTruncateShards(w http.ResponseWriter, r *http.Request) {
 
+}
+
+func validateCommand(b []byte) error {
+	// Ensure command can be deserialized before applying.
+	if err := proto.Unmarshal(b, &internal.Command{}); err != nil {
+		return fmt.Errorf("unable to unmarshal command: %s", err)
+	}
+
+	return nil
 }
 
 // serveSnapshot is a long polling http connection to server cache updates
@@ -500,31 +544,11 @@ func (h *handler) serveLease(w http.ResponseWriter, r *http.Request) {
 func (h *handler) serveAnnounce(w http.ResponseWriter, r *http.Request) {
 
 }
-func (h *handler) serveGetUser(w http.ResponseWriter, r *http.Request) {
+func (h *handler) gossipAnnouncements() {
 
 }
-func (h *handler) servePostUser(w http.ResponseWriter, r *http.Request) {
+func (h *handler) mergeAnnouncements() {
 
-}
-func (h *handler) serveGetRole(w http.ResponseWriter, r *http.Request) {
-
-}
-
-func (h *handler) servePostRole(w http.ResponseWriter, r *http.Request) {
-
-}
-
-func (h *handler) serveAuthorized(w http.ResponseWriter, r *http.Request) {
-
-}
-
-func validateCommand(b []byte) error {
-	// Ensure command can be deserialized before applying.
-	if err := proto.Unmarshal(b, &internal.Command{}); err != nil {
-		return fmt.Errorf("unable to unmarshal command: %s", err)
-	}
-
-	return nil
 }
 
 type gzipResponseWriter struct {
@@ -621,46 +645,86 @@ func (h *handler) httpError(err error, w http.ResponseWriter, status int) {
 	http.Error(w, "", status)
 }
 
-type Lease struct {
-	Name       string    `json:"name"`
-	Expiration time.Time `json:"expiration"`
-	Owner      uint64    `json:"owner"`
+func (h *handler) serveGetUser(w http.ResponseWriter, r *http.Request) {
+
 }
 
-type Leases struct {
-	mu sync.Mutex
-	m  map[string]*Lease
-	d  time.Duration
+func readUserAction() {
+
 }
 
-func NewLeases(d time.Duration) *Leases {
-	return &Leases{
-		m: make(map[string]*Lease),
-		d: d,
-	}
+func (h *handler) servePostUser(w http.ResponseWriter, r *http.Request) {
+
 }
 
-func (leases *Leases) Acquire(name string, nodeID uint64) (*Lease, error) {
-	leases.mu.Lock()
-	defer leases.mu.Unlock()
+func (h *handler) createUser() {
 
-	l, ok := leases.m[name]
-	if ok {
-		if time.Now().After(l.Expiration) || l.Owner == nodeID {
-			l.Expiration = time.Now().Add(leases.d)
-			l.Owner = nodeID
-			return l, nil
-		}
-		return l, errors.New("another node has the lease")
-	}
-
-	l = &Lease{
-		Name:       name,
-		Expiration: time.Now().Add(leases.d),
-		Owner:      nodeID,
-	}
-
-	leases.m[name] = l
-
-	return l, nil
 }
+func (h *handler) deleteUser() {
+
+}
+func (h *handler) changeUserPassword() {
+
+}
+func (h *handler) addUserPermissions() {
+
+}
+func (h *handler) removeUserPermissions() {
+
+}
+
+func (h *handler) serveGetRole(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *handler) servePostRole(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *handler) createrole() {
+
+}
+func (h *handler) deleterole() {
+
+}
+func (h *handler) addroleusers() {
+
+}
+func (h *handler) removeroleusers() {
+
+}
+func (h *handler) addrolepermissions() {
+
+}
+func (h *handler) removerolepermissions() {
+
+}
+func (h *handler) changerolename() {
+
+}
+
+func (h *handler) serveAuthorized(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func parseCredentials() {
+
+}
+func (h *handler) jwtKeyLookup() {
+
+}
+func (h *handler) authenticate() {
+
+}
+
+func (p Permissions) ScopedPermissions() {
+
+}
+func (p Permissions) FromScopedPermissions() {
+
+}
+func requiredParameters() {
+
+}
+
+//TODO add lease

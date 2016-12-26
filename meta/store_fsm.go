@@ -147,7 +147,6 @@ func (fsm *storeFSM) applyCreateDatabaseCommand(cmd *internal.Command) interface
 	//TODO revist this later
 	rpi := meta.RetentionPolicyInfo{}
 	err := rpi.UnmarshalBinary(v.GetRetentionPolicy())
-	// if rpi := v.GetRetentionPolicy(); rpi != nil {
 	if err == nil {
 		if err := other.Data.CreateRetentionPolicy(v.GetName(), &meta.RetentionPolicyInfo{
 			Name:               rpi.Name,

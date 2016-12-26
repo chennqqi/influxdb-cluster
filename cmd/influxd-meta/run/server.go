@@ -96,7 +96,7 @@ func NewServer(c *meta.Config, buildInfo *BuildInfo) (*Server, error) {
 	}
 
 	// load node from node.json and check the error
-	node, err := influxdb.LoadNode(newPath)
+	node, err := influxdb.LoadNode(c.Meta.Dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, err

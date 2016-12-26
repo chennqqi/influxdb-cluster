@@ -10,17 +10,20 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"time"
+
+	"go.uber.org/zap"
 )
 
 const logo = `
-8888888           .d888 888                   888b     d888
-  888            d88P"  888                   8888b   d8888
-  888            888    888                   88888b.d88888
-  888   88888b.  888888 888 888  888 888  888 888Y88888P888
-  888   888 "88b 888    888 888  888 ·Y8bd8P' 888 Y888P 888
-  888   888  888 888    888 888  888   X88K   888  Y8P  888
-  888   888  888 888    888 Y88b 888 .d8""8b. 888   "   888
-8888888 888  888 888    888  "Y88888 888  888 888       888
+ 8888888           .d888 888                   8888888b.  888888b.
+   888            d88P"  888                   888  "Y88b 888  "88b
+   888            888    888                   888    888 888  .88P
+   888   88888b.  888888 888 888  888 888  888 888    888 8888888K.
+   888   888 "88b 888    888 888  888  Y8bd8P' 888    888 888  "Y88b
+   888   888  888 888    888 888  888   X88K   888    888 888    888
+   888   888  888 888    888 Y88b 888 .d8""8b. 888  .d88P 888   d88P
+ 8888888 888  888 888    888  "Y88888 888  888 8888888P"  8888888P"
 
 `
 
@@ -37,6 +40,7 @@ type Command struct {
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+	Logger zap.Logger
 
 	Server *Server
 }
@@ -49,6 +53,7 @@ func NewCommand() *Command {
 		Stdin:   os.Stdin,
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
+		Logger:  zap.New(zap.NullEncoder()),
 	}
 }
 
@@ -63,16 +68,10 @@ func (cmd *Command) Run(args ...string) error {
 	// Print sweet InfluxDB logo.
 	fmt.Print(logo)
 
-	// Configure default logging.
-	log.SetFlags(log.LstdFlags)
-
-	// Set parallelism.
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	// Mark start-up in log.
-	log.Printf("InfluxDB Meta starting, version %s, branch %s, commit %s",
-		cmd.Version, cmd.Branch, cmd.Commit)
-	log.Printf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0))
+	cmd.Logger.Info(fmt.Sprintf("InfluxDB starting, version %s, branch %s, commit %s",
+		cmd.Version, cmd.Branch, cmd.Commit))
+	cmd.Logger.Info(fmt.Sprintf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0)))
 
 	// Write the PID file.
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
@@ -80,7 +79,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Parse config
-	config, err := ParseConfig(options.GetConfigPath())
+	config, err := cmd.ParseConfig(options.GetConfigPath())
 	if err != nil {
 		return fmt.Errorf("parse config: %s", err)
 	}
@@ -95,22 +94,32 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err)
 	}
 
+	if config.HTTPD.PprofEnabled {
+		// Turn on block profiling to debug stuck databases
+		runtime.SetBlockProfileRate(int(1 * time.Second))
+	}
+
 	// Create server from config and start it.
 	buildInfo := &BuildInfo{
 		Version: cmd.Version,
 		Commit:  cmd.Commit,
 		Branch:  cmd.Branch,
+		Time:    cmd.BuildTime,
 	}
 	s, err := NewServer(config, buildInfo)
 	if err != nil {
 		return fmt.Errorf("create server: %s", err)
 	}
+	s.Logger = cmd.Logger
 	s.CPUProfile = options.CPUProfile
 	s.MemProfile = options.MemProfile
 	if err := s.Open(); err != nil {
 		return fmt.Errorf("open server: %s", err)
 	}
 	cmd.Server = s
+
+	// Begin monitoring the server's error channel.
+	go cmd.monitorServerErrors()
 
 	return nil
 }
@@ -174,6 +183,25 @@ func (cmd *Command) writePIDFile(path string) error {
 	}
 
 	return nil
+}
+
+// ParseConfig parses the config at path.
+// Returns a demo configuration if path is blank.
+func (cmd *Command) ParseConfig(path string) (*Config, error) {
+	// Use demo configuration if no config path is specified.
+	if path == "" {
+		cmd.Logger.Info("no configuration provided, using default settings")
+		return NewDemoConfig()
+	}
+
+	cmd.Logger.Info(fmt.Sprintf("Using configuration at: %s\n", path))
+
+	config := NewConfig()
+	if err := config.FromTomlFile(path); err != nil {
+		return nil, err
+	}
+
+	return config, nil
 }
 
 var usage = `Runs the InfluxDB server.

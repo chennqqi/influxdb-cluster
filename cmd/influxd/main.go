@@ -4,18 +4,18 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/zhexuany/influxdb-cluster/cmd"
-	"github.com/zhexuany/influxdb-cluster/cmd/add-data"
-	"github.com/zhexuany/influxdb-cluster/cmd/add-meta"
-	"github.com/zhexuany/influxdb-cluster/cmd/join"
-	"github.com/zhexuany/influxdb-cluster/cmd/leave"
+	"github.com/influxdata/influxdb/cmd"
+	"github.com/influxdata/influxdb/cmd/influxd/backup"
+	"github.com/influxdata/influxdb/cmd/influxd/help"
+	"github.com/influxdata/influxdb/cmd/influxd/restore"
+	"github.com/influxdata/influxdb/cmd/influxd/run"
+	"go.uber.org/zap"
 )
 
 // These variables are populated via the Go linker.
@@ -50,7 +50,7 @@ func main() {
 
 // Main represents the program execution.
 type Main struct {
-	Logger *log.Logger
+	Logger zap.Logger
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -60,7 +60,10 @@ type Main struct {
 // NewMain return a new instance of Main.
 func NewMain() *Main {
 	return &Main{
-		Logger: log.New(os.Stderr, "[run] ", log.LstdFlags),
+		Logger: zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		),
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
@@ -73,32 +76,65 @@ func (m *Main) Run(args ...string) error {
 
 	// Extract name from args.
 	switch name {
-	case "add-data":
-		name := add - data.NewCommand()
-		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("add-data: %s", err)
+	case "", "run":
+		cmd := run.NewCommand()
+
+		// Tell the server the build details.
+		cmd.Version = version
+		cmd.Commit = commit
+		cmd.Branch = branch
+		cmd.Logger = m.Logger
+
+		if err := cmd.Run(args...); err != nil {
+			return fmt.Errorf("run: %s", err)
 		}
-	case "add-meta":
-		name := add - meta.NewCommand()
-		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("add-meta: %s", err)
+
+		signalCh := make(chan os.Signal, 1)
+		signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+		m.Logger.Info("Listening for signals")
+
+		// Block until one of the signals above is received
+		select {
+		case <-signalCh:
+			m.Logger.Info("Signal received, initializing clean shutdown...")
+			go func() {
+				cmd.Close()
+			}()
 		}
-	case "join":
-		name := join.NewCommand()
-		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("join: %s", err)
+
+		// Block again until another signal is received, a shutdown timeout elapses,
+		// or the Command is gracefully closed
+		m.Logger.Info("Waiting for clean shutdown...")
+		select {
+		case <-signalCh:
+			m.Logger.Info("second signal received, initializing hard shutdown")
+		case <-time.After(time.Second * 30):
+			m.Logger.Info("time limit reached, initializing hard shutdown")
+		case <-cmd.Closed:
+			m.Logger.Info("server shutdown completed")
 		}
-	case "leave":
-		name := leave.NewCommand()
-		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("restore: %s", err)
-		}
-	case "copy-shard":
-		name := add - meta.NewCommand()
+
+		// goodbye.
+
+	case "backup":
+		name := backup.NewCommand()
 		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("backup: %s", err)
 		}
-	case "", "help":
+	case "restore":
+		name := restore.NewCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("restore: %s", err)
+		}
+	case "config":
+		if err := run.NewPrintConfigCommand().Run(args...); err != nil {
+			return fmt.Errorf("config: %s", err)
+		}
+	case "version":
+		if err := NewVersionCommand().Run(args...); err != nil {
+			return fmt.Errorf("version: %s", err)
+		}
+	case "help":
 		if err := help.NewCommand().Run(args...); err != nil {
 			return fmt.Errorf("help: %s", err)
 		}
