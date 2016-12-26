@@ -1,3 +1,4 @@
+# This project is still under developing
 # influxdb-cluster
 Meta node only communicates wilt meta node. Data node can not just communicate with data node but also can communicate with meta node. A plugin for influxdb which make it distributed. In this framework, we have two different nodes. Then main part of this sytem 
 is `Meta` and second part of this system is `Data`. They both have different role 
