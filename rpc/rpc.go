@@ -1,4 +1,4 @@
-package cluster
+package rpc
 
 import (
 	"errors"
@@ -343,21 +343,18 @@ func (r *FieldDimensionsResponse) UnmarshalBinary(data []byte) error {
 type JoinClusterRequest struct {
 	NodeID    uint64
 	NodeAddr  string
-	MetaAddrs []byte
+	MetaAddrs []string
 }
 
 func (jc *JoinClusterRequest) MarshalBinary() ([]byte, error) {
 	var pb internal.JoinClusterRequest
 
-	pb.NodeID = jc.NodeID
+	pb.NodeID = proto.Uint64(jc.NodeID)
 
-	pb.MetaAddrs = jc.MetaAddrs
-	pb.NodeAddr = jc.NodeAddr
-
-	pb.MetaAddrs = make([]byte, 0, len(jc.MetaAddrs))
-	for k := range jc.MetaAddrs {
-		pb.MetaAddrs = append(pb.MetaAddrs, k)
+	for i, metaAddr := range jc.MetaAddrs {
+		pb.MetaAddrs[i] = metaAddr
 	}
+	pb.NodeAddr = proto.String(jc.NodeAddr)
 
 	return proto.Marshal(&pb)
 

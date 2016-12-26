@@ -54,7 +54,7 @@ message RemoveShardResponse {
 message JoinClusterRequest {
   required uint64 NodeID = 1;
   required string NodeAddr = 2;
-  required string MetaAddrs = 3;
+  repeated string MetaAddrs = 3;
   required string ImportMetaData = 4;
 }
 

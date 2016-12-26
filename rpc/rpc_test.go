@@ -1,4 +1,4 @@
-package cluster
+package rpc_test
 
 import (
 	"errors"

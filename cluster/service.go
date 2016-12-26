@@ -7,7 +7,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/zhexuany/influxdb-cluster/tlv"
 )
 
 // MaxMessageSize defines how large a message can be before we reject it
@@ -133,11 +135,11 @@ func (s *Service) handleConn(conn net.Conn) {
 
 	s.Logger.Printf("accept remote connection from %v\n", conn.RemoteAddr())
 	defer func() {
-		s.Logger.Print("close remote connection from %v\n", conn.RemoteAddr())
+		s.Logger.Printf("close remote connection from %v\n", conn.RemoteAddr())
 	}()
 	for {
 		// Read type-length-value.
-		typ, err := ReadType(conn)
+		typ, err := tlv.ReadType(conn)
 		if err != nil {
 			if strings.HasSuffix(err.Error(), "EOF") {
 				return
@@ -283,7 +285,7 @@ func (s *Service) processCreateIteratorRequest(conn net.Conn) {
 	if err := func() error {
 		// Parse request.
 		var req CreateIteratorRequest
-		if err := DecodeLV(conn, &req); err != nil {
+		if err := tlv.DecodeLV(conn, &req); err != nil {
 			return err
 		}
 
@@ -308,12 +310,12 @@ func (s *Service) processCreateIteratorRequest(conn net.Conn) {
 	}(); err != nil {
 		itr.Close()
 		s.Logger.Printf("error reading CreateIterator request: %s", err)
-		EncodeTLV(conn, createIteratorResponseMessage, &CreateIteratorResponse{Err: err})
+		tlv.EncodeTLV(conn, createIteratorResponseMessage, &CreateIteratorResponse{Err: err})
 		return
 	}
 
 	// Encode success response.
-	if err := EncodeTLV(conn, createIteratorResponseMessage, &CreateIteratorResponse{}); err != nil {
+	if err := tlv.EncodeTLV(conn, createIteratorResponseMessage, &CreateIteratorResponse{}); err != nil {
 		s.Logger.Printf("error writing CreateIterator response: %s", err)
 		return
 	}
@@ -335,7 +337,7 @@ func (s *Service) processFieldDimensionsRequest(conn net.Conn) {
 	if err := func() error {
 		// Parse request.
 		var req FieldDimensionsRequest
-		if err := DecodeLV(conn, &req); err != nil {
+		if err := tlv.DecodeLV(conn, &req); err != nil {
 			return err
 		}
 
@@ -359,12 +361,12 @@ func (s *Service) processFieldDimensionsRequest(conn net.Conn) {
 		return nil
 	}(); err != nil {
 		s.Logger.Printf("error reading FieldDimensions request: %s", err)
-		EncodeTLV(conn, fieldDimensionsResponseMessage, &FieldDimensionsResponse{Err: err})
+		tlv.EncodeTLV(conn, fieldDimensionsResponseMessage, &FieldDimensionsResponse{Err: err})
 		return
 	}
 
 	// Encode success response.
-	if err := EncodeTLV(conn, fieldDimensionsResponseMessage, &FieldDimensionsResponse{
+	if err := tlv.EncodeTLV(conn, fieldDimensionsResponseMessage, &FieldDimensionsResponse{
 		Fields:     fields,
 		Dimensions: dimensions,
 	}); err != nil {
@@ -393,10 +395,6 @@ func (s *Service) processCreateShardSnapshotRequest() {
 }
 func (s *Service) processDeleteShardSnapshotRequest() {
 
-}
-func ReadTLV() {
-	//tlv.ReadType()
-	///tlv.ReadLV()
 }
 
 func (s *Service) processExpandSourcesRequest() {
@@ -445,7 +443,7 @@ func (s *Service) processShowTagValues() {
 
 }
 
-type BufferWriterCloser struct {
+type BufferedWriteCloser struct {
 }
 
 func (bfc *BufferedWriteCloser) Close() {
